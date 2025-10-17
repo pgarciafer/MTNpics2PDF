@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pictures to PDF Generator</title>
+<link rel="icon" href="https://raw.githubusercontent.com/pgarciafer/pics2PDF/main/logo1.png" type="image/png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary-color: #007BFF;
+  --primary-hover: #0056b3;
+  --success-color: #28a745;
+  --error-color: #dc3545;
+  --bg-color: #f8f9fa;
+  --container-bg: #ffffff;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --border-color: #dee2e6;
+  --border-focus: #80bdff;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: var(--bg-color);
+  margin: 0;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  color: var(--text-primary);
+}
+
+.container {
+  max-width: 800px;
+  width: 100%;
+  padding: 32px;
+  background: var(--container-bg);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px var(--shadow-color);
+  transition: all 0.3s ease;
+}
+
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-title img {
+  height: 60px;
+}
+
+.header-title span {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.contact-btn {
+  padding: 10px 18px;
+  background-color: transparent;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+
+.contact-btn:hover {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+label {
+  display: block;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+input, select {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-size: 14px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  background-color: #fff;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.drop-zone-section {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.drop-zone {
+  border: 2px dashed var(--border-color);
+  background: #fafcff;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--primary-color);
+  background: #f0f6ff;
+}
+
+.drop-zone p {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.image-list-container, .attachment-list-container {
+  border: 1px solid var(--border-color);
+  min-height: 100px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8f9fa;
+  display: none;
+  gap: 12px;
+}
+
+.image-list-container {
+  display: none;
+  flex-wrap: wrap;
+}
+
+.image-wrapper {
+  position: relative;
+}
+
+.image-item {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
+  background: #fff;
+  cursor: grab;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.image-item:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.image-item.dragging {
+  opacity: 0.5;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--error-color);
+  color: white;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all 0.3s;
+}
+
+.remove-image-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.attachment-list-container {
+  display: none;
+}
+.attachment-item {
+  font-size: 14px;
+  color: var(--text-primary);
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+.attachment-item:last-child {
+  border-bottom: none;
+}
+
+.button-group {
+  margin-top: 32px;
+}
+
+button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s;
+  position: relative;
+}
+
+button:disabled {
+  background-color: #ced4da;
+  cursor: not-allowed;
+  transform: none;
+}
+
+#generatePDF {
+  width: 100%;
+  background-color: var(--primary-color);
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+#generatePDF:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+#generatePDF.loading span {
+  visibility: hidden;
+}
+#generatePDF.loading::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  border: 4px solid transparent;
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: button-loading-spinner 1s ease infinite;
+}
+@keyframes button-loading-spinner {
+  from { transform: rotate(0turn); }
+  to { transform: rotate(1turn); }
+}
+
+
+.job-info-btn {
+  width: 100%;
+  background-color: var(--success-color);
+  color: white;
+  margin-bottom: 24px;
+}
+
+.job-info-btn:hover {
+  background-color: #218838;
+}
+
+.required-label {
+  color: var(--error-color);
+  font-weight: 600;
+}
+
+.invalid {
+  border-color: var(--error-color) !important;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.25) !important;
+}
+
+.status-message {
+  text-align: center;
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  display: none;
+}
+.status-message.visible {
+    display: block;
+}
+.status-message.success {
+  background-color: #e9f7ef;
+  color: #155724;
+}
+.status-message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+.status-message.info {
+  background-color: #e7f3fe;
+  color: #0c5460;
+}
+
+button.remove-btn {
+  background-color: transparent;
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+  height: 100%;
+}
+button.remove-btn:hover:not(:disabled) {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.attachment-section {
+  margin-top: 32px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  body {
+    padding: 16px;
+  }
+  .container {
+    padding: 24px;
+  }
+  .header-container {
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .drop-zone-section {
+    grid-template-columns: 1fr;
+  }
+  button.remove-btn {
+    min-height: 60px;
+  }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header-container">
+  <div class="header-title">
+    <a href="https://www.mtnsat.com" target="_blank">
+      <img src="https://raw.githubusercontent.com/pgarciafer/pics2PDF/main/logo.png" alt="Logo">
+    </a>
+    <span>Pictures Array to PDF</span>
+  </div>
+  <a href="contact.html" class="contact-btn">Contact</a>
+</div>
+
+<div class="job-info-container">
+  <button id="jobInfoLabel" class="job-info-btn">Load/Update Current Job Info (.txt)</button>
+</div>
+
+<div class="drop-zone-section">
+  <div class="drop-zone" id="dropZone">
+    <p>📁 Drag & Drop Pictures Here or Click</p>
+  </div>
+  <button id="removeAllBtn" class="remove-btn">Remove All Images</button>
+</div>
+<div class="image-list-container" id="imageListContainer"></div>
+
+
+<div class="attachment-section">
+  <div class="drop-zone-section">
+    <div class="drop-zone" id="attachmentsDropZone">
+      <p>📎 Drag & Drop Attachments Here or Click</p>
+    </div>
+    <button id="removeAllAttachmentsBtn" class="remove-btn">Remove All Attachments</button>
+  </div>
+  <div class="attachment-list-container" id="attachmentListContainer"></div>
+</div>
+
+<label for="vesselName">3LC_VesselName: <span class="required-label">*</span></label>
+<input type="text" id="vesselName" placeholder="e.g., NCL_RoyalClipper">
+
+<label for="antennaModel">AntennaBrandModel_SNxxx: <span class="required-label">*</span></label>
+<input type="text" id="antennaModel" placeholder="e.g., Intellian-v100_SN24536">
+
+<label for="antennaLocation">Antenna Location: <span class="required-label">*</span></label>
+<input type="text" id="antennaLocation" placeholder="e.g., Deck 1 Starboard">
+
+<label for="caseNumber">Case Number: <span class="required-label">*</span></label>
+<input type="tel" id="caseNumber" inputmode="numeric" pattern="[0-9]*" placeholder="e.g., 35234">
+
+<label for="submittedBy">Submitted By: <span class="required-label">*</span></label>
+<input type="text" id="submittedBy" placeholder="e.g., Pablo Garcia">
+
+<label for="dateField">Date: <span class="required-label">*</span></label>
+<input type="date" id="dateField">
+
+<label for="imagesPerPage">Images per page (1-4):</label>
+<select id="imagesPerPage">
+  <option value="1">1</option>
+  <option value="2" selected>2</option>
+  <option value="3">3</option>
+  <option value="4">4</option>
+</select>
+
+<label for="compressionLevel">Image Quality:</label>
+<select id="compressionLevel">
+  <option value="0.9">Best (Larger File Size)</option>
+  <option value="0.7" selected>Good (Recommended)</option>
+  <option value="0.5">Standard (Smallest File Size)</option>
+</select>
+
+<div class="button-group">
+  <button id="generatePDF"><span>Generate PDF & ZIP</span></button>
+</div>
+
+<div class="status-message" id="statusMessage"></div>
+</div>
+<script>
+const { jsPDF } = window.jspdf;
+let images = [];
+let attachments = [];
+const dropZone = document.getElementById('dropZone');
+const imageListContainer = document.getElementById('imageListContainer');
+const attachmentsDropZone = document.getElementById('attachmentsDropZone');
+const attachmentListContainer = document.getElementById('attachmentListContainer');
+const generateBtn = document.getElementById('generatePDF');
+const statusMessage = document.getElementById('statusMessage');
+
+// Default date
+document.getElementById("dateField").value = new Date().toISOString().split("T")[0];
+
+function showStatus(message, type = 'info') {
+    statusMessage.textContent = message;
+    statusMessage.className = `status-message ${type} visible`;
+}
+
+// === Helpers ===
+async function fileToJpegDataURL(file, maxDim = 2000, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          if (!blob) return reject("Canvas conversion failed");
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.readAsDataURL(blob);
+        }, "image/jpeg", quality);
+      };
+      img.onerror = () => reject("Image load failed");
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject("FileReader failed");
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatVesselName(raw) {
+  if (!raw) return "";
+  let clean = raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  let firstThree = clean.slice(0,3).toUpperCase();
+  let rest = clean.slice(3).trim();
+  if (!rest) return firstThree;
+  let words = rest.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  let formattedRest = words.join("");
+  return firstThree + "_" + formattedRest;
+}
+
+function formatAntennaModel(model, sn) {
+  if (!model || !sn) return "";
+  let m = model.trim().replace(/\s+/g, "-");
+  return (m.charAt(0).toUpperCase() + m.slice(1)) + "_SN" + sn.trim().toUpperCase();
+}
+
+function formatAntennaLocation(loc) {
+  if (!loc) return "";
+  return loc.trim().toUpperCase();
+}
+
+function formatSubmittedby(name) {
+  if (!name) return "";
+  return name
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+let jobFileHandle = null;
+
+document.getElementById("jobInfoLabel").addEventListener("click", async () => {
+  const openWithInput = () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt';
+    fileInput.onchange = async () => {
+      if (!fileInput.files || fileInput.files.length === 0) return;
+      const file = fileInput.files[0];
+      try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          populateJobInfo(data);
+      } catch (err) {
+          console.error(err);
+          showStatus("Failed to process job info file.", "error");
+      }
+    };
+    fileInput.click();
+  };
+
+  try {
+    if (!window.showOpenFilePicker) {
+        throw new Error("showOpenFilePicker not supported");
+    }
+
+    if (!jobFileHandle) {
+      [jobFileHandle] = await window.showOpenFilePicker({
+        types: [{
+          description: 'Job Info File',
+          accept: { 'text/plain': ['.txt'] },
+        }],
+        multiple: false
+      });
+    }
+    const file = await jobFileHandle.getFile();
+    const text = await file.text();
+    const data = JSON.parse(text);
+    populateJobInfo(data);
+
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log('File picker was cancelled by the user.');
+      return;
+    }
+    console.warn("showOpenFilePicker failed, falling back to input.", err);
+    openWithInput();
+  }
+});
+
+function populateJobInfo(data) {
+  if (data.VESSEL) document.getElementById("vesselName").value = formatVesselName(data.VESSEL);
+  if (data.INCIDENT) document.getElementById("caseNumber").value = data.INCIDENT;
+  if (data["ANTENNA"] && data["ANTENNA SN"]) {
+    document.getElementById("antennaModel").value = formatAntennaModel(data["ANTENNA"], data["ANTENNA SN"]);
+  }
+  if (data["LOCATION"]) document.getElementById("antennaLocation").value = formatAntennaLocation(data["LOCATION"]);
+  if (data["TECH"]) document.getElementById("submittedBy").value = formatSubmittedby(data["TECH"]);
+  showStatus("Current Job Info loaded successfully!", "success");
+}
+
+dropZone.addEventListener('click', () => {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.multiple = true;
+  fileInput.accept = 'image/*';
+  fileInput.onchange = () => addImages(fileInput.files);
+  fileInput.click();
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove("dragover"); addImages(e.dataTransfer.files); });
+
+async function addImages(fileList) {
+  if (fileList.length > 0) imageListContainer.style.display = 'flex';
+  for (const file of fileList) {
+    if (file.type.startsWith('image/')) {
+      const thumbDataUrl = await fileToJpegDataURL(file, 400, 0.6);
+      const wrapper = document.createElement('div');
+      wrapper.classList.add('image-wrapper');
+      const previewImg = document.createElement('img');
+      previewImg.src = thumbDataUrl;
+      previewImg.classList.add('image-item');
+      const removeBtn = document.createElement('button');
+      removeBtn.innerHTML = "×";
+      removeBtn.classList.add('remove-image-btn');
+      removeBtn.onclick = () => {
+        const index = Array.from(imageListContainer.children).indexOf(wrapper);
+        if (index > -1) images.splice(index, 1);
+        wrapper.remove();
+        if (images.length === 0) imageListContainer.style.display = 'none';
+      };
+      wrapper.appendChild(previewImg);
+      wrapper.appendChild(removeBtn);
+      imageListContainer.appendChild(wrapper);
+      images.push(file);
+    }
+  }
+}
+
+document.getElementById('removeAllBtn').addEventListener('click', () => {
+  images = [];
+  imageListContainer.innerHTML = '';
+  imageListContainer.style.display = 'none';
+  showStatus('All images removed.', 'info');
+});
+
+attachmentsDropZone.addEventListener('click', () => {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.multiple = true;
+  fileInput.onchange = () => addAttachments(fileInput.files);
+  fileInput.click();
+});
+attachmentsDropZone.addEventListener('dragover', e => { e.preventDefault(); attachmentsDropZone.classList.add("dragover"); });
+attachmentsDropZone.addEventListener('dragleave', e => { e.preventDefault(); attachmentsDropZone.classList.remove("dragover"); });
+attachmentsDropZone.addEventListener('drop', e => { e.preventDefault(); attachmentsDropZone.classList.remove("dragover"); addAttachments(e.dataTransfer.files); });
+
+function addAttachments(fileList){
+  if(fileList.length > 0) attachmentListContainer.style.display = 'block';
+  Array.from(fileList).forEach(file => {
+    attachments.push(file);
+    const item = document.createElement('div');
+    item.textContent = file.name;
+    item.classList.add('attachment-item');
+    attachmentListContainer.appendChild(item);
+  });
+}
+document.getElementById('removeAllAttachmentsBtn').addEventListener('click', () => {
+  attachments = [];
+  attachmentListContainer.innerHTML = '';
+  attachmentListContainer.style.display = 'none';
+  showStatus('All attachments removed.', 'info');
+});
+
+
+generateBtn.addEventListener('click', async () => {
+  statusMessage.className = 'status-message';
+  generateBtn.disabled = true;
+  generateBtn.classList.add('loading');
+
+  try {
+    const requiredIds = ["vesselName", "antennaModel", "antennaLocation", "caseNumber", "submittedBy", "dateField"];
+    let valid = true;
+    requiredIds.forEach(id => {
+      const f = document.getElementById(id);
+      if (!f.value.trim()) {
+        f.classList.add("invalid");
+        valid = false;
+      } else {
+        f.classList.remove("invalid");
+      }
+    });
+    if (!valid) throw new Error("Please fill all required fields!");
+
+    if (images.length === 0 && attachments.length === 0) throw new Error("Add at least one image or attachment.");
+
+    showStatus("Generating PDF and output files...", "info");
+
+    const vessel = document.getElementById('vesselName').value.trim();
+    const antenna = document.getElementById('antennaModel').value.trim();
+    const location = document.getElementById('antennaLocation').value.trim().toUpperCase();
+    const caseNum = document.getElementById('caseNumber').value.trim();
+    const submitted = formatSubmittedby(document.getElementById('submittedBy').value.trim());
+    const dateStr = document.getElementById('dateField').value;
+    const perPage = parseInt(document.getElementById('imagesPerPage').value);
+    const compressionQuality = parseFloat(document.getElementById('compressionLevel').value);
+
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    const logoUrl = 'https://raw.githubusercontent.com/pgarciafer/pics2PDF/main/logo.png';
+    const logo = await loadImage(logoUrl);
+    if (logo) {
+      const logoWidth = 350;
+      const logoHeight = (logo.height * logoWidth) / logo.width;
+      pdf.addImage(logo, 'PNG', (pageWidth - logoWidth) / 2, 50, logoWidth, logoHeight);
+    }
+
+    pdf.setFontSize(26).setFont('helvetica', 'bold');
+    pdf.text(vessel, pageWidth / 2, 250, { align: 'center' });
+    pdf.setFontSize(18);
+    pdf.text(`${antenna} (${location})`, pageWidth / 2, 290, { align: 'center' });
+    pdf.setFontSize(14);
+    pdf.text(`Case Number: ${caseNum}`, pageWidth / 2, 330, { align: 'center' });
+    pdf.text(`Submitted By: ${submitted}`, pageWidth / 2, 360, { align: 'center' });
+    pdf.text(`Date: ${dateStr}`, pageWidth / 2, 385, { align: 'center' });
+
+    if (images.length > 0) {
+      pdf.addPage();
+      let pageNum = 2;
+      for (let i = 0; i < images.length; i += perPage) {
+        const chunk = images.slice(i, i + perPage);
+        let spacingX = 10, spacingY = 10;
+        let cellWidth = (pageWidth - (perPage + 1) * spacingX) / perPage;
+        let cellHeight = pageHeight - 2 * spacingY;
+        for (let idx = 0; idx < chunk.length; idx++) {
+          await addImageToPDF(pdf, chunk[idx], spacingX + idx * (cellWidth + spacingX), spacingY, cellWidth, cellHeight, compressionQuality);
+        }
+        pdf.setFontSize(12).text(`Page ${pageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        if (i + perPage < images.length) pdf.addPage();
+        pageNum++;
+      }
+    }
+
+    if (attachments.length > 0) {
+      pdf.addPage();
+      pdf.setFontSize(16).setFont('helvetica', 'bold');
+      pdf.text("Attached Files", pageWidth / 2, 30, { align: 'center' });
+      pdf.setFontSize(12).setFont('helvetica', 'normal');
+      let startY = 60;
+      for (const att of attachments) {
+        pdf.text(`📎 ${att.name}`, 20, startY);
+        startY += 25;
+        if (startY > pageHeight - 40) {
+          pdf.addPage();
+          startY = 40;
+        }
+      }
+    }
+
+    const pdfFilename = `${vessel}_PicArray_${antenna}_${location.replace(/ /g, '')}_Case${caseNum}_${dateStr.replace(/-/g,'')}.pdf`;
+    
+    if (attachments.length > 0) {
+      const zip = new JSZip();
+      const pdfBlob = new Blob([pdf.output('blob')], { type: 'application/pdf' });
+      zip.file(pdfFilename, pdfBlob);
+
+      const attachmentsFolder = zip.folder("attachments");
+      for (const att of attachments) {
+        attachmentsFolder.file(att.name, att);
+      }
+
+      const zipFilename = pdfFilename.replace('.pdf', '.zip');
+      zip.generateAsync({ type: "blob" }).then(content => {
+        saveAs(content, zipFilename);
+        showStatus('PDF and ZIP generated successfully!', 'success');
+      });
+    } else {
+      const pdfBlob = pdf.output('blob');
+      saveAs(pdfBlob, pdfFilename);
+      showStatus('PDF generated successfully!', 'success');
+    }
+
+  } catch (err) {
+    showStatus(err.message || "Error generating PDF/ZIP.", "error");
+    console.error(err);
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.classList.remove('loading');
+  }
+});
+
+
+function loadImage(src){
+  return new Promise(res=>{
+    const img=new Image();
+    img.crossOrigin='Anonymous';
+    img.src=src;
+    img.onload=()=>res(img);
+    img.onerror=()=>res(null);
+  });
+}
+
+async function addImageToPDF(pdf, file, x, y, width, height, quality) {
+  const dataUrl = await fileToJpegDataURL(file, 2000, quality);
+  if (!dataUrl) return;
+  const img = new Image();
+  img.src = dataUrl;
+  await new Promise(res => { img.onload = res; });
+  const cellAspect = width / height;
+  const imgAspect = img.width / img.height;
+  let finalW, finalH;
+  if (imgAspect > cellAspect) {
+    finalW = width * 0.95;
+    finalH = finalW / imgAspect;
+  } else {
+    finalH = height * 0.95;
+    finalW = finalH * imgAspect;
+  }
+  pdf.addImage(
+    dataUrl,
+    "JPEG",
+    x + (width - finalW) / 2,
+    y + (height - finalH) / 2,
+    finalW,
+    finalH
+  );
+}
+</script>
+</body>
+</html>
