@@ -8,20 +8,23 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --primary-color: #007BFF;
-  --primary-hover: #0056b3;
+  --primary-color: #005A9C;
+  --primary-hover: #004a80;
+  --secondary-color: #6c757d;
+  --secondary-hover: #5a6268;
+  --danger-color: #dc3545;
+  --danger-hover: #c82333;
   --success-color: #28a745;
-  --error-color: #dc3545;
   --bg-color: #f8f9fa;
   --container-bg: #ffffff;
-  --text-primary: #212529;
-  --text-secondary: #6c757d;
+  --text-color: #212529;
+  --text-muted: #6c757d;
   --border-color: #dee2e6;
-  --border-focus: #80bdff;
-  --shadow-color: rgba(0, 0, 0, 0.1);
+  --card-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  --input-focus-shadow: 0 0 0 0.25rem rgba(0, 90, 156, 0.25);
+  --input-invalid-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
 }
 
 *, *::before, *::after {
@@ -29,7 +32,7 @@
 }
 
 body {
-  font-family: 'Poppins', sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background-color: var(--bg-color);
   margin: 0;
   padding: 24px;
@@ -37,16 +40,17 @@ body {
   justify-content: center;
   align-items: flex-start;
   min-height: 100vh;
-  color: var(--text-primary);
+  color: var(--text-color);
 }
 
 .container {
   max-width: 800px;
   width: 100%;
-  padding: 32px;
+  padding: 24px;
   background: var(--container-bg);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px var(--shadow-color);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
   transition: all 0.3s ease;
 }
 
@@ -72,7 +76,8 @@ body {
 .header-title span {
   font-size: 24px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--primary-color);
+  letter-spacing: -0.5px;
 }
 
 label {
@@ -80,24 +85,25 @@ label {
   margin-top: 16px;
   margin-bottom: 8px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 input, select {
   width: 100%;
-  padding: 12px 16px;
-  border-radius: 8px;
+  padding: 10px;
+  border-radius: 6px;
   border: 1px solid var(--border-color);
-  font-size: 14px;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  font-size: 15px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
   background-color: #fff;
+  color: var(--text-color);
 }
 
 input:focus, select:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+  box-shadow: var(--input-focus-shadow);
 }
 
 .drop-zone-section {
@@ -131,7 +137,7 @@ input:focus, select:focus {
 .drop-zone p {
   font-size: 16px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -179,7 +185,7 @@ input:focus, select:focus {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: var(--error-color);
+  background: var(--danger-color);
   color: white;
   border: 2px solid white;
   border-radius: 50%;
@@ -198,6 +204,7 @@ input:focus, select:focus {
 .remove-image-btn:hover {
   opacity: 1;
   transform: scale(1.1);
+  background-color: var(--danger-hover);
 }
 
 .attachment-list-container {
@@ -205,7 +212,7 @@ input:focus, select:focus {
 }
 .attachment-item {
   font-size: 14px;
-  color: var(--text-primary);
+  color: var(--text-color);
   padding: 8px 4px;
   border-bottom: 1px solid var(--border-color);
 }
@@ -218,33 +225,39 @@ input:focus, select:focus {
 }
 
 button {
-  padding: 12px 20px;
-  border: none;
-  border-radius: 8px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  transition: all 0.3s;
+  font-size: 15px;
+  font-weight: 500;
+  transition: background-color 0.15s ease-in-out, transform 0.1s ease;
   position: relative;
+  -webkit-appearance: none;
 }
 
 button:disabled {
-  background-color: #ced4da;
+  background-color: #ccc;
   cursor: not-allowed;
   transform: none;
+  opacity: 0.7;
 }
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
 
 #generatePDF {
   width: 100%;
   background-color: var(--primary-color);
   color: white;
-  letter-spacing: 0.5px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 #generatePDF:hover:not(:disabled) {
   background-color: var(--primary-hover);
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
-  transform: translateY(-2px);
 }
 
 #generatePDF.loading span {
@@ -273,23 +286,23 @@ button:disabled {
 
 .job-info-btn {
   width: 100%;
-  background-color: var(--success-color);
+  background-color: var(--primary-color);
   color: white;
   margin-bottom: 24px;
 }
 
-.job-info-btn:hover {
-  background-color: #218838;
+.job-info-btn:hover:not(:disabled) {
+  background-color: var(--primary-hover);
 }
 
 .required-label {
-  color: var(--error-color);
+  color: var(--danger-color);
   font-weight: 600;
 }
 
 .invalid {
-  border-color: var(--error-color) !important;
-  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.25) !important;
+  border-color: var(--danger-color) !important;
+  box-shadow: var(--input-invalid-shadow) !important;
 }
 
 .status-message {
@@ -313,18 +326,18 @@ button:disabled {
   color: #721c24;
 }
 .status-message.info {
-  background-color: #e7f3fe;
-  color: #0c5460;
+  background-color: rgba(0, 90, 156, 0.1);
+  color: var(--primary-color);
 }
 
 button.remove-btn {
-  background-color: transparent;
-  color: var(--error-color);
-  border: 1px solid var(--error-color);
+  background-color: white;
+  color: var(--danger-color);
   height: 100%;
+  border: 1px solid var(--danger-color);
 }
 button.remove-btn:hover:not(:disabled) {
-  background-color: var(--error-color);
+  background-color: var(--danger-color);
   color: white;
 }
 
