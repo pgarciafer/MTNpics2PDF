@@ -52,7 +52,7 @@ body {
 
 .header-container {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   margin-bottom: 32px;
   padding-bottom: 24px;
@@ -74,7 +74,6 @@ body {
   font-weight: 600;
   color: var(--text-primary);
 }
-
 
 label {
   display: block;
@@ -333,6 +332,10 @@ button.remove-btn:hover:not(:disabled) {
   margin-top: 32px;
 }
 
+#dateField {
+  width: 75%;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   body {
@@ -344,6 +347,9 @@ button.remove-btn:hover:not(:disabled) {
   .header-container {
     flex-direction: column;
     gap: 16px;
+  }
+  .header-title {
+    flex-direction: column;
   }
 }
 @media (max-width: 600px) {
@@ -365,7 +371,6 @@ button.remove-btn:hover:not(:disabled) {
     </a>
     <span>Pictures Array to PDF</span>
   </div>
- 
 </div>
 
 <div class="job-info-container">
