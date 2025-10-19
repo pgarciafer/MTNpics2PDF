@@ -613,15 +613,15 @@ async function addImages(fileList) {
       wrapper.classList.add('image-wrapper');
       
       const previewImg = document.createElement('img');
+      // Use URL.createObjectURL for memory-efficient previews instead of data URLs
+      const objectUrl = URL.createObjectURL(file);
+      previewImg.src = objectUrl;
       previewImg.classList.add('image-item');
       
       const removeBtn = document.createElement('button');
       removeBtn.innerHTML = "×";
       removeBtn.classList.add('remove-image-btn');
-
-      // Create object URL early so it's in scope for handlers
-      const objectUrl = URL.createObjectURL(file);
-
+      
       removeBtn.onclick = () => {
         const index = Array.from(imageListContainer.children).indexOf(wrapper);
         if (index > -1) images.splice(index, 1);
@@ -633,27 +633,10 @@ async function addImages(fileList) {
         if (images.length === 0) imageListContainer.style.display = 'none';
       };
       
-      previewImg.onload = () => {
-        // The image is loaded and will be displayed. This handler helps ensure
-        // rendering completes, which can fix issues on some mobile browsers.
-      };
-      previewImg.onerror = () => {
-        console.error(`Failed to load preview for ${file.name}. It will be removed.`);
-        // Clean up on error
-        const index = Array.from(imageListContainer.children).indexOf(wrapper);
-        if (index > -1) images.splice(index, 1);
-        URL.revokeObjectURL(objectUrl);
-        wrapper.remove();
-        if (images.length === 0) imageListContainer.style.display = 'none';
-      };
-      
       wrapper.appendChild(previewImg);
       wrapper.appendChild(removeBtn);
       imageListContainer.appendChild(wrapper);
       images.push(file);
-
-      // Set src last to trigger image loading after DOM is ready and handlers are attached.
-      previewImg.src = objectUrl;
     }
   }
 }
