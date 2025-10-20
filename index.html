@@ -907,13 +907,69 @@ generateBtn.addEventListener('click', async () => {
       let pageNum = 2;
       for (let i = 0; i < images.length; i += perPage) {
         const chunk = images.slice(i, i + perPage);
-        let spacingX = 10, spacingY = 10;
-        let cellWidth = (pageWidth - (perPage + 1) * spacingX) / perPage;
-        let cellHeight = pageHeight - 2 * spacingY;
+        const spacingX = 10, spacingY = 10;
+        const cellWidth = (pageWidth - (perPage + 1) * spacingX) / perPage;
+        const cellHeight = pageHeight - 2 * spacingY;
+
+        const processedChunk = [];
+        let maxImageBottom = 0;
+        
+        const anyCommentInChunk = chunk.some(d => d.comment && d.comment.trim() !== '');
+        const reservedCommentSpace = anyCommentInChunk ? 50 : 0;
+        const imgContainerHeight = cellHeight - reservedCommentSpace;
+
         for (let idx = 0; idx < chunk.length; idx++) {
-          const imgData = chunk[idx];
-          await addImageToPDF(pdf, imgData.file, imgData.comment, spacingX + idx * (cellWidth + spacingX), spacingY, cellWidth, cellHeight, compressionQuality);
+            const imgData = chunk[idx];
+            const dataUrl = await processImageForPdf(imgData.file, 2000, compressionQuality);
+            if (!dataUrl) continue;
+
+            const img = new Image();
+            img.src = dataUrl;
+            await new Promise(res => { img.onload = res; });
+            
+            const cellAspect = cellWidth / imgContainerHeight;
+            const imgAspect = img.width / img.height;
+            let finalW, finalH;
+
+            if (imgAspect > cellAspect) {
+                finalW = cellWidth * 0.95;
+                finalH = finalW / imgAspect;
+            } else {
+                finalH = imgContainerHeight * 0.95;
+                finalW = finalH * imgAspect;
+            }
+
+            const cellX = spacingX + idx * (cellWidth + spacingX);
+            const cellY = spacingY;
+
+            const imgX = cellX + (cellWidth - finalW) / 2;
+            const imgY = cellY + (imgContainerHeight - finalH) / 2;
+            
+            const imageBottom = imgY + finalH;
+            if (imageBottom > maxImageBottom) {
+                maxImageBottom = imageBottom;
+            }
+
+            processedChunk.push({
+                dataUrl,
+                comment: imgData.comment,
+                imgX, imgY, finalW, finalH,
+                cellX, cellWidth
+            });
         }
+
+        const textY = maxImageBottom > 0 ? maxImageBottom + 15 : imgContainerHeight + 15;
+
+        for (const pImg of processedChunk) {
+            pdf.addImage(pImg.dataUrl, "JPEG", pImg.imgX, pImg.imgY, pImg.finalW, pImg.finalH);
+
+            if (pImg.comment && pImg.comment.trim() !== '') {
+                pdf.setFontSize(10).setFont('helvetica', 'normal');
+                const textLines = pdf.splitTextToSize(pImg.comment, pImg.cellWidth * 0.9);
+                pdf.text(textLines, pImg.cellX + pImg.cellWidth / 2, textY, { align: 'center' });
+            }
+        }
+        
         pdf.setFontSize(12).text(`Page ${pageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
         if (i + perPage < images.length) pdf.addPage();
         pageNum++;
@@ -977,44 +1033,6 @@ function loadImage(src){
     img.onload=()=>res(img);
     img.onerror=()=>res(null);
   });
-}
-
-async function addImageToPDF(pdf, file, comment, x, y, width, height, quality) {
-  const dataUrl = await processImageForPdf(file, 2000, quality);
-  if (!dataUrl) return;
-
-  const img = new Image();
-  img.src = dataUrl;
-  await new Promise(res => { img.onload = res; });
-
-  const hasComment = comment && comment.trim() !== '';
-  const commentSpace = hasComment ? 60 : 0; // Reserve space for comment
-  const imgHeight = height - commentSpace;
-
-  const cellAspect = width / imgHeight;
-  const imgAspect = img.width / img.height;
-  let finalW, finalH;
-
-  if (imgAspect > cellAspect) {
-    finalW = width * 0.95;
-    finalH = finalW / imgAspect;
-  } else {
-    finalH = imgHeight * 0.95;
-    finalW = finalH * imgAspect;
-  }
-
-  // Vertically center image in its allocated space
-  const imgY = y + (imgHeight - finalH) / 2;
-  const imgX = x + (width - finalW) / 2;
-  
-  pdf.addImage(dataUrl, "JPEG", imgX, imgY, finalW, finalH);
-
-  if (hasComment) {
-    pdf.setFontSize(10).setFont('helvetica', 'normal');
-    const textLines = pdf.splitTextToSize(comment, width * 0.9); // wrap text
-    const textY = y + imgHeight + 15; // Position below image area
-    pdf.text(textLines, x + width / 2, textY, { align: 'center' });
-  }
 }
 </script>
 </body>
