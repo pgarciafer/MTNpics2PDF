@@ -711,57 +711,68 @@ dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classL
 dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove("dragover"); addImages(e.dataTransfer.files); });
 
+// --- MODIFIED FUNCTION ---
+// This function now creates lightweight thumbnails to save memory
 async function addImages(fileList) {
   if (fileList.length > 0) imageListContainer.style.display = 'flex';
+  
   for (const file of fileList) {
     if (file.type.startsWith('image/')) {
-      const wrapper = document.createElement('div');
-      wrapper.classList.add('image-wrapper');
-      
-      const previewImg = document.createElement('img');
-      const objectUrl = URL.createObjectURL(file);
-      previewImg.src = objectUrl;
-      previewImg.classList.add('image-item');
+      try {
+        // Create a lightweight thumbnail for preview (200px max, 0.7 quality)
+        const thumbnailUrl = await processImageForPdf(file, 200, 0.7); 
 
-      previewImg.onclick = () => {
-        const index = Array.from(imageListContainer.children).indexOf(wrapper);
-        openImageModal(index);
-      };
-      
-      const removeBtn = document.createElement('button');
-      removeBtn.innerHTML = "×";
-      removeBtn.classList.add('remove-image-btn');
-      
-      removeBtn.onclick = () => {
-        const index = Array.from(imageListContainer.children).indexOf(wrapper);
-        if (index > -1) {
-            URL.revokeObjectURL(images[index].previewUrl);
-            images.splice(index, 1);
-            wrapper.remove();
-            if (images.length === 0) imageListContainer.style.display = 'none';
-        }
-      };
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('image-wrapper');
+        
+        const previewImg = document.createElement('img');
+        previewImg.src = thumbnailUrl; // Use the lightweight thumbnail dataURL
+        previewImg.classList.add('image-item');
 
-      const commentIcon = document.createElement('span');
-      commentIcon.classList.add('comment-icon');
-      commentIcon.textContent = '💬';
-      
-      wrapper.appendChild(previewImg);
-      wrapper.appendChild(removeBtn);
-      wrapper.appendChild(commentIcon);
-      imageListContainer.appendChild(wrapper);
+        previewImg.onclick = () => {
+          const index = Array.from(imageListContainer.children).indexOf(wrapper);
+          openImageModal(index);
+        };
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.innerHTML = "×";
+        removeBtn.classList.add('remove-image-btn');
+        
+        removeBtn.onclick = () => {
+          const index = Array.from(imageListContainer.children).indexOf(wrapper);
+          if (index > -1) {
+              // No more objectURL to revoke here
+              images.splice(index, 1);
+              wrapper.remove();
+              if (images.length === 0) imageListContainer.style.display = 'none';
+          }
+        };
 
-      images.push({
-          file: file,
-          comment: '',
-          previewUrl: objectUrl
-      });
+        const commentIcon = document.createElement('span');
+        commentIcon.classList.add('comment-icon');
+        commentIcon.textContent = '💬';
+        
+        wrapper.appendChild(previewImg);
+        wrapper.appendChild(removeBtn);
+        wrapper.appendChild(commentIcon);
+        imageListContainer.appendChild(wrapper);
+
+        images.push({
+            file: file, // Keep the original full-res file for PDF generation
+            comment: ''
+            // No need to store previewUrl anymore
+        });
+      } catch (err) {
+        console.error("Failed to create thumbnail for", file.name, err);
+        showStatus(`Failed to add image: ${file.name}`, "error");
+      }
     }
   }
 }
 
+// --- MODIFIED FUNCTION ---
+// Removed the URL.revokeObjectURL line
 document.getElementById('removeAllBtn').addEventListener('click', () => {
-  images.forEach(imgData => URL.revokeObjectURL(imgData.previewUrl));
   images = [];
   imageListContainer.innerHTML = '';
   imageListContainer.style.display = 'none';
@@ -801,11 +812,12 @@ modalSaveBtn.addEventListener('click', () => {
   closeImageModal();
 });
 
+// --- MODIFIED FUNCTION ---
+// Removed the URL.revokeObjectURL line
 modalDeleteBtn.addEventListener('click', () => {
     if (activeImageIndex > -1) {
         const wrapper = imageListContainer.children[activeImageIndex];
         if (wrapper) {
-            URL.revokeObjectURL(images[activeImageIndex].previewUrl);
             images.splice(activeImageIndex, 1);
             wrapper.remove();
             if (images.length === 0) imageListContainer.style.display = 'none';
@@ -920,6 +932,7 @@ generateBtn.addEventListener('click', async () => {
 
         for (let idx = 0; idx < chunk.length; idx++) {
             const imgData = chunk[idx];
+            // Process the *original full-res file* here
             const dataUrl = await processImageForPdf(imgData.file, 2000, compressionQuality);
             if (!dataUrl) continue;
 
