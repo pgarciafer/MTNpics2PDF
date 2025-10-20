@@ -932,10 +932,10 @@ generateBtn.addEventListener('click', async () => {
             let finalW, finalH;
 
             if (imgAspect > cellAspect) {
-                finalW = cellWidth * 0.95;
+                finalW = cellWidth * 0.85;
                 finalH = finalW / imgAspect;
             } else {
-                finalH = imgContainerHeight * 0.95;
+                finalH = imgContainerHeight * 0.85;
                 finalW = finalH * imgAspect;
             }
 
