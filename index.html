@@ -964,7 +964,7 @@ generateBtn.addEventListener('click', async () => {
             pdf.addImage(pImg.dataUrl, "JPEG", pImg.imgX, pImg.imgY, pImg.finalW, pImg.finalH);
 
             if (pImg.comment && pImg.comment.trim() !== '') {
-                pdf.setFontSize(10).setFont('helvetica', 'normal');
+                pdf.setFontSize(14).setFont('helvetica', 'normal');
                 const textLines = pdf.splitTextToSize(pImg.comment, pImg.cellWidth * 0.9);
                 pdf.text(textLines, pImg.cellX + pImg.cellWidth / 2, textY, { align: 'center' });
             }
