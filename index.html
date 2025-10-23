@@ -160,6 +160,9 @@ input:focus, select:focus {
 
 .image-wrapper {
   position: relative;
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10+ */
+  user-select: none;
 }
 
 .image-item {
@@ -462,6 +465,22 @@ button.remove-btn:hover:not(:disabled) {
     width: 100%;
   }
 }
+
+/* Styles for touch-based drag and drop */
+.image-wrapper.touch-dragging {
+  opacity: 0.8;
+  transform-origin: center center;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  z-index: 1000;
+  transition: none; /* Disable transitions while dragging */
+}
+.placeholder {
+  background-color: #e9ecef;
+  border: 2px dashed var(--primary-color);
+  border-radius: 8px;
+  flex-shrink: 0;
+  /* width and height set by JS */
+}
 </style>
 </head>
 <body>
@@ -555,7 +574,7 @@ button.remove-btn:hover:not(:disabled) {
 const { jsPDF } = window.jspdf;
 let images = [];
 let attachments = [];
-let dragSrcEl = null; // for drag and drop reordering
+let dragSrcEl = null; // for desktop drag and drop reordering
 const dropZone = document.getElementById('dropZone');
 const imageListContainer = document.getElementById('imageListContainer');
 const attachmentsDropZone = document.getElementById('attachmentsDropZone');
@@ -772,6 +791,9 @@ async function addImages(fileList) {
       wrapper.addEventListener('dragleave', handleDragLeave, false);
       wrapper.addEventListener('drop', handleDrop, false);
       wrapper.addEventListener('dragend', handleDragEnd, false);
+
+      // Add touch listener for mobile reordering
+      wrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
     }
   }
 }
@@ -1051,7 +1073,7 @@ function loadImage(src){
   });
 }
 
-// === Drag and Drop Functions ===
+// === Drag and Drop Functions (Desktop) ===
 function handleDragStart(e) {
   this.classList.add('dragging');
   dragSrcEl = this;
@@ -1105,17 +1127,132 @@ function handleDragEnd(e) {
 
   // Re-sync the `images` array with the new DOM order
   const newDomOrder = [...imageListContainer.children];
-  const newImagesArray = [];
-  newDomOrder.forEach(wrapper => {
-    const id = wrapper.dataset.id;
-    const imageData = images.find(img => img.id === id);
-    if (imageData) {
-      newImagesArray.push(imageData);
-    }
-  });
+  const newImagesArray = newDomOrder
+    .map(wrapper => images.find(img => img.id === wrapper.dataset.id))
+    .filter(Boolean); // Filter out any undefined if something went wrong
   images = newImagesArray;
   
   dragSrcEl = null;
+}
+
+// === Touch Drag and Drop Functions (Mobile) ===
+let touchDragEl = null, isDraggingTouch = false, placeholder = null, longPressTimer = null;
+let initialTouchX = 0, initialTouchY = 0, startRect = null;
+const LONG_PRESS_DURATION = 300; // ms
+
+function handleTouchStart(e) {
+  if (e.target.classList.contains('remove-image-btn')) return;
+
+  touchDragEl = this;
+  const touch = e.touches[0];
+  const startX = touch.clientX;
+  const startY = touch.clientY;
+
+  const cancelDrag = () => {
+    clearTimeout(longPressTimer);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', cancelDrag);
+    document.removeEventListener('touchcancel', cancelDrag);
+  };
+
+  const onMove = (moveEvent) => {
+    const moveTouch = moveEvent.touches[0];
+    // If finger moves more than 10px, it's a scroll, not a long press.
+    if (Math.abs(moveTouch.clientX - startX) > 10 || Math.abs(moveTouch.clientY - startY) > 10) {
+      cancelDrag();
+    }
+  };
+  
+  document.addEventListener('touchmove', onMove);
+  document.addEventListener('touchend', cancelDrag);
+  document.addEventListener('touchcancel', cancelDrag);
+
+  longPressTimer = setTimeout(() => {
+    cancelDrag(); // We are starting the drag, so these listeners are no longer needed.
+
+    isDraggingTouch = true;
+    startRect = touchDragEl.getBoundingClientRect();
+    initialTouchX = touch.clientX;
+    initialTouchY = touch.clientY;
+    
+    placeholder = document.createElement('div');
+    placeholder.classList.add('placeholder');
+    placeholder.style.width = `${startRect.width}px`;
+    placeholder.style.height = `${startRect.height}px`;
+    touchDragEl.parentNode.insertBefore(placeholder, touchDragEl);
+
+    Object.assign(touchDragEl.style, {
+        position: 'fixed',
+        zIndex: '1000',
+        width: `${startRect.width}px`,
+        height: `${startRect.height}px`,
+        left: `${startRect.left}px`,
+        top: `${startRect.top}px`,
+        margin: '0'
+    });
+    touchDragEl.classList.add('touch-dragging');
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+    document.addEventListener('touchcancel', handleTouchEnd);
+  }, LONG_PRESS_DURATION);
+}
+
+function handleTouchMove(e) {
+  if (!isDraggingTouch) return;
+  e.preventDefault();
+
+  const touch = e.touches[0];
+  const dx = touch.clientX - initialTouchX;
+  const dy = touch.clientY - initialTouchY;
+
+  touchDragEl.style.transform = `translate(${dx}px, ${dy}px)`;
+
+  touchDragEl.style.visibility = 'hidden';
+  const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  touchDragEl.style.visibility = 'visible';
+
+  if (!elementBelow) return;
+
+  const dropTarget = elementBelow.closest('.image-wrapper');
+  if (dropTarget && dropTarget !== touchDragEl && dropTarget !== placeholder) {
+      const dropTargetRect = dropTarget.getBoundingClientRect();
+      const isAfter = (touch.clientX > dropTargetRect.left + dropTargetRect.width / 2);
+
+      if (isAfter) {
+          dropTarget.parentNode.insertBefore(placeholder, dropTarget.nextSibling);
+      } else {
+          dropTarget.parentNode.insertBefore(placeholder, dropTarget);
+      }
+  }
+}
+
+function handleTouchEnd(e) {
+  if (!isDraggingTouch) return;
+
+  document.removeEventListener('touchmove', handleTouchMove);
+  document.removeEventListener('touchend', handleTouchEnd);
+  document.removeEventListener('touchcancel', handleTouchEnd);
+
+  if (touchDragEl && placeholder) {
+    placeholder.parentNode.insertBefore(touchDragEl, placeholder);
+    placeholder.remove();
+    
+    touchDragEl.classList.remove('touch-dragging');
+    touchDragEl.style.cssText = ''; // Resets all inline styles
+  }
+  
+  // Re-sync the `images` array with the new DOM order
+  const newDomOrder = [...imageListContainer.children];
+  const newImagesArray = newDomOrder
+    .map(wrapper => images.find(img => img.id === wrapper.dataset.id))
+    .filter(Boolean); // Filter out any undefined if something went wrong
+  images = newImagesArray;
+  
+  isDraggingTouch = false;
+  touchDragEl = null;
+  placeholder = null;
+  startRect = null;
 }
 </script>
 </body>
