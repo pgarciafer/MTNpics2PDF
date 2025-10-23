@@ -177,8 +177,12 @@ input:focus, select:focus {
   transform: scale(1.05);
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-.image-item.dragging {
+.image-wrapper.dragging {
   opacity: 0.5;
+}
+.image-wrapper.over {
+  outline: 2px dashed var(--primary-color);
+  outline-offset: 2px;
 }
 
 .remove-image-btn {
@@ -551,6 +555,7 @@ button.remove-btn:hover:not(:disabled) {
 const { jsPDF } = window.jspdf;
 let images = [];
 let attachments = [];
+let dragSrcEl = null; // for drag and drop reordering
 const dropZone = document.getElementById('dropZone');
 const imageListContainer = document.getElementById('imageListContainer');
 const attachmentsDropZone = document.getElementById('attachmentsDropZone');
@@ -711,68 +716,68 @@ dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classL
 dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove("dragover"); addImages(e.dataTransfer.files); });
 
-// --- MODIFIED FUNCTION ---
-// This function now creates lightweight thumbnails to save memory
 async function addImages(fileList) {
   if (fileList.length > 0) imageListContainer.style.display = 'flex';
-  
   for (const file of fileList) {
     if (file.type.startsWith('image/')) {
-      try {
-        // Create a lightweight thumbnail for preview (200px max, 0.7 quality)
-        const thumbnailUrl = await processImageForPdf(file, 200, 0.7); 
+      const wrapper = document.createElement('div');
+      wrapper.classList.add('image-wrapper');
+      wrapper.draggable = true;
+      
+      const previewImg = document.createElement('img');
+      const objectUrl = URL.createObjectURL(file);
+      previewImg.src = objectUrl;
+      previewImg.classList.add('image-item');
 
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('image-wrapper');
-        
-        const previewImg = document.createElement('img');
-        previewImg.src = thumbnailUrl; // Use the lightweight thumbnail dataURL
-        previewImg.classList.add('image-item');
+      previewImg.onclick = () => {
+        const index = Array.from(imageListContainer.children).indexOf(wrapper);
+        openImageModal(index);
+      };
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.innerHTML = "×";
+      removeBtn.classList.add('remove-image-btn');
+      
+      removeBtn.onclick = () => {
+        const index = Array.from(imageListContainer.children).indexOf(wrapper);
+        if (index > -1) {
+            URL.revokeObjectURL(images[index].previewUrl);
+            images.splice(index, 1);
+            wrapper.remove();
+            if (images.length === 0) imageListContainer.style.display = 'none';
+        }
+      };
 
-        previewImg.onclick = () => {
-          const index = Array.from(imageListContainer.children).indexOf(wrapper);
-          openImageModal(index);
-        };
-        
-        const removeBtn = document.createElement('button');
-        removeBtn.innerHTML = "×";
-        removeBtn.classList.add('remove-image-btn');
-        
-        removeBtn.onclick = () => {
-          const index = Array.from(imageListContainer.children).indexOf(wrapper);
-          if (index > -1) {
-              // No more objectURL to revoke here
-              images.splice(index, 1);
-              wrapper.remove();
-              if (images.length === 0) imageListContainer.style.display = 'none';
-          }
-        };
+      const commentIcon = document.createElement('span');
+      commentIcon.classList.add('comment-icon');
+      commentIcon.textContent = '💬';
+      
+      wrapper.appendChild(previewImg);
+      wrapper.appendChild(removeBtn);
+      wrapper.appendChild(commentIcon);
+      imageListContainer.appendChild(wrapper);
 
-        const commentIcon = document.createElement('span');
-        commentIcon.classList.add('comment-icon');
-        commentIcon.textContent = '💬';
-        
-        wrapper.appendChild(previewImg);
-        wrapper.appendChild(removeBtn);
-        wrapper.appendChild(commentIcon);
-        imageListContainer.appendChild(wrapper);
+      const newImageData = {
+          file: file,
+          comment: '',
+          previewUrl: objectUrl,
+          id: 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+      };
+      images.push(newImageData);
+      wrapper.dataset.id = newImageData.id;
 
-        images.push({
-            file: file, // Keep the original full-res file for PDF generation
-            comment: ''
-            // No need to store previewUrl anymore
-        });
-      } catch (err) {
-        console.error("Failed to create thumbnail for", file.name, err);
-        showStatus(`Failed to add image: ${file.name}`, "error");
-      }
+      wrapper.addEventListener('dragstart', handleDragStart, false);
+      wrapper.addEventListener('dragenter', handleDragEnter, false);
+      wrapper.addEventListener('dragover', handleDragOver, false);
+      wrapper.addEventListener('dragleave', handleDragLeave, false);
+      wrapper.addEventListener('drop', handleDrop, false);
+      wrapper.addEventListener('dragend', handleDragEnd, false);
     }
   }
 }
 
-// --- MODIFIED FUNCTION ---
-// Removed the URL.revokeObjectURL line
 document.getElementById('removeAllBtn').addEventListener('click', () => {
+  images.forEach(imgData => URL.revokeObjectURL(imgData.previewUrl));
   images = [];
   imageListContainer.innerHTML = '';
   imageListContainer.style.display = 'none';
@@ -812,12 +817,11 @@ modalSaveBtn.addEventListener('click', () => {
   closeImageModal();
 });
 
-// --- MODIFIED FUNCTION ---
-// Removed the URL.revokeObjectURL line
 modalDeleteBtn.addEventListener('click', () => {
     if (activeImageIndex > -1) {
         const wrapper = imageListContainer.children[activeImageIndex];
         if (wrapper) {
+            URL.revokeObjectURL(images[activeImageIndex].previewUrl);
             images.splice(activeImageIndex, 1);
             wrapper.remove();
             if (images.length === 0) imageListContainer.style.display = 'none';
@@ -932,7 +936,6 @@ generateBtn.addEventListener('click', async () => {
 
         for (let idx = 0; idx < chunk.length; idx++) {
             const imgData = chunk[idx];
-            // Process the *original full-res file* here
             const dataUrl = await processImageForPdf(imgData.file, 2000, compressionQuality);
             if (!dataUrl) continue;
 
@@ -945,10 +948,10 @@ generateBtn.addEventListener('click', async () => {
             let finalW, finalH;
 
             if (imgAspect > cellAspect) {
-                finalW = cellWidth * 0.85;
+                finalW = cellWidth * 0.95;
                 finalH = finalW / imgAspect;
             } else {
-                finalH = imgContainerHeight * 0.85;
+                finalH = imgContainerHeight * 0.95;
                 finalW = finalH * imgAspect;
             }
 
@@ -977,7 +980,7 @@ generateBtn.addEventListener('click', async () => {
             pdf.addImage(pImg.dataUrl, "JPEG", pImg.imgX, pImg.imgY, pImg.finalW, pImg.finalH);
 
             if (pImg.comment && pImg.comment.trim() !== '') {
-                pdf.setFontSize(14).setFont('helvetica', 'normal');
+                pdf.setFontSize(10).setFont('helvetica', 'normal');
                 const textLines = pdf.splitTextToSize(pImg.comment, pImg.cellWidth * 0.9);
                 pdf.text(textLines, pImg.cellX + pImg.cellWidth / 2, textY, { align: 'center' });
             }
@@ -1046,6 +1049,73 @@ function loadImage(src){
     img.onload=()=>res(img);
     img.onerror=()=>res(null);
   });
+}
+
+// === Drag and Drop Functions ===
+function handleDragStart(e) {
+  this.classList.add('dragging');
+  dragSrcEl = this;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', this.dataset.id);
+}
+
+function handleDragOver(e) {
+  if (e.preventDefault) {
+    e.preventDefault();
+  }
+  e.dataTransfer.dropEffect = 'move';
+  return false;
+}
+
+function handleDragEnter(e) {
+  if (this !== dragSrcEl) {
+    this.classList.add('over');
+  }
+}
+
+function handleDragLeave(e) {
+  this.classList.remove('over');
+}
+
+function handleDrop(e) {
+  if (e.stopPropagation) {
+    e.stopPropagation();
+  }
+  
+  if (dragSrcEl !== this) {
+    const allItems = Array.from(imageListContainer.children);
+    const srcIndex = allItems.indexOf(dragSrcEl);
+    const targetIndex = allItems.indexOf(this);
+
+    if (srcIndex < targetIndex) {
+        imageListContainer.insertBefore(dragSrcEl, this.nextSibling);
+    } else {
+        imageListContainer.insertBefore(dragSrcEl, this);
+    }
+  }
+  return false;
+}
+
+function handleDragEnd(e) {
+  const items = document.querySelectorAll('.image-list-container .image-wrapper');
+  items.forEach(function (item) {
+    item.classList.remove('over');
+    item.classList.remove('dragging');
+  });
+
+  // Re-sync the `images` array with the new DOM order
+  const newDomOrder = [...imageListContainer.children];
+  const newImagesArray = [];
+  newDomOrder.forEach(wrapper => {
+    const id = wrapper.dataset.id;
+    const imageData = images.find(img => img.id === id);
+    if (imageData) {
+      newImagesArray.push(imageData);
+    }
+  });
+  images = newImagesArray;
+  
+  dragSrcEl = null;
 }
 </script>
 </body>
