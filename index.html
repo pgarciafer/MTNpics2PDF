@@ -602,7 +602,7 @@ let activeImageIndex = -1;
 // Default date
 document.getElementById("dateField").value = new Date().toISOString().split("T")[0];
 
-// === ACCESSIBILITY CHANGE: Add listeners for keyboard interaction ===
+// Add listeners for keyboard interaction
 function setupDropZoneAccessibility(zoneId) {
   const zone = document.getElementById(zoneId);
   zone.addEventListener('keydown', (e) => {
@@ -615,7 +615,6 @@ function setupDropZoneAccessibility(zoneId) {
 }
 setupDropZoneAccessibility('dropZone');
 setupDropZoneAccessibility('attachmentsDropZone');
-// === END ACCESSIBILITY CHANGE ===
 
 
 function showStatus(message, type = 'info') {
@@ -800,7 +799,6 @@ dropZone.addEventListener('click', () => {
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.multiple = true;
-  // === UX CHANGE: Be more specific about accepted types ===
   fileInput.accept = 'image/jpeg,image/png,image/heif,image/heic';
   fileInput.onchange = () => addImages(fileInput.files);
   fileInput.click();
@@ -809,7 +807,7 @@ dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classL
 dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove("dragover"); addImages(e.dataTransfer.files); });
 
-// === PERFORMANCE CHANGE: Asynchronous image loading ===
+// Asynchronous image loading
 async function addImages(fileList) {
   if (fileList.length > 0) imageListContainer.style.display = 'flex';
   
@@ -843,7 +841,6 @@ async function addImages(fileList) {
       const removeBtn = document.createElement('button');
       removeBtn.innerHTML = "×";
       removeBtn.classList.add('remove-image-btn');
-      // === ACCESSIBILITY CHANGE ===
       removeBtn.ariaLabel = "Remove image"; 
       
       removeBtn.onclick = () => {
@@ -880,7 +877,6 @@ async function addImages(fileList) {
       wrapper.addEventListener('dragend', handleDragEnd, false);
       wrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
 
-      // **THE IMPORTANT PART**
       // After each image, pause briefly to let the UI update
       await new Promise(res => setTimeout(res, 0)); 
 
@@ -891,11 +887,9 @@ async function addImages(fileList) {
   }
 
   // Done! Re-enable button
-  // === UX CHANGE: Add mobile hint ===
   showStatus(`Added ${filesToProcess.length} images. Hint: Long-press to re-order.`, 'success');
   generateBtn.disabled = false;
 }
-// === END PERFORMANCE CHANGE ===
 
 document.getElementById('removeAllBtn').addEventListener('click', () => {
   images = [];
@@ -1043,14 +1037,13 @@ generateBtn.addEventListener('click', async () => {
       let pageNum = 2;
       for (let i = 0; i < images.length; i += perPage) {
         
-        // === PERFORMANCE CHANGE: Asynchronous PDF page generation ===
+        // Asynchronous PDF page generation
         const pageCount = Math.ceil(images.length / perPage);
         const currentPage = (i / perPage) + 1;
         showStatus(`Processing PDF page ${currentPage} of ${pageCount}...`, 'info');
         
         // Pause for UI update
         await new Promise(res => setTimeout(res, 0)); 
-        // === END PERFORMANCE CHANGE ===
 
         const chunk = images.slice(i, i + perPage);
         const spacingX = 10, spacingY = 10;
@@ -1157,15 +1150,20 @@ generateBtn.addEventListener('click', async () => {
 
       const zipFilename = pdfFilename.replace('.pdf', '.zip');
       zip.generateAsync({ type: "blob" }).then(content => {
+        // ZIP files MUST use saveAs from FileSaver.js
         saveAs(content, zipFilename);
         showStatus('PDF and ZIP generated successfully!', 'success');
       });
     } else {
+      // === THIS IS THE MODIFIED PART ===
+      // This path (no attachments) now uses pdf.save() for a better mobile experience
       showStatus('Saving PDF...', 'info');
       await new Promise(res => setTimeout(res, 0));
-      const pdfBlob = pdf.output('blob');
-      saveAs(pdfBlob, pdfFilename);
+      // const pdfBlob = pdf.output('blob'); // No longer needed
+      // saveAs(pdfBlob, pdfFilename); // Replaced this...
+      pdf.save(pdfFilename); // ...with this
       showStatus('PDF generated successfully!', 'success');
+      // === END OF MODIFICATION ===
     }
 
   } catch (err) {
