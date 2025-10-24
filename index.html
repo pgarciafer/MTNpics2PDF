@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
+/* ... (All CSS styles remain exactly the same as before) ... */
 :root {
   --primary-color: #005A9C;
   --primary-hover: #004a80;
@@ -132,6 +133,13 @@ input:focus, select:focus {
 .drop-zone:hover, .drop-zone.dragover {
   border-color: var(--primary-color);
   background: #f0f6ff;
+}
+
+/* Style for keyboard focus */
+.drop-zone:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: var(--input-focus-shadow);
 }
 
 .drop-zone p {
@@ -499,7 +507,7 @@ button.remove-btn:hover:not(:disabled) {
 </div>
 
 <div class="drop-zone-section">
-  <div class="drop-zone" id="dropZone">
+  <div class="drop-zone" id="dropZone" tabindex="0">
     <p>📁 Drag & Drop Pictures Here or Click</p>
   </div>
   <button id="removeAllBtn" class="remove-btn">Remove All Images</button>
@@ -509,7 +517,7 @@ button.remove-btn:hover:not(:disabled) {
 
 <div class="attachment-section">
   <div class="drop-zone-section">
-    <div class="drop-zone" id="attachmentsDropZone">
+    <div class="drop-zone" id="attachmentsDropZone" tabindex="0">
       <p>📎 Drag & Drop Attachments Here or Click</p>
     </div>
     <button id="removeAllAttachmentsBtn" class="remove-btn">Remove All Attachments</button>
@@ -594,12 +602,27 @@ let activeImageIndex = -1;
 // Default date
 document.getElementById("dateField").value = new Date().toISOString().split("T")[0];
 
+// === ACCESSIBILITY CHANGE: Add listeners for keyboard interaction ===
+function setupDropZoneAccessibility(zoneId) {
+  const zone = document.getElementById(zoneId);
+  zone.addEventListener('keydown', (e) => {
+    // 32 = Space, 13 = Enter
+    if (e.keyCode === 32 || e.keyCode === 13) {
+      e.preventDefault(); // Stop space from scrolling the page
+      zone.click(); // Trigger the existing click listener
+    }
+  });
+}
+setupDropZoneAccessibility('dropZone');
+setupDropZoneAccessibility('attachmentsDropZone');
+// === END ACCESSIBILITY CHANGE ===
+
+
 function showStatus(message, type = 'info') {
     statusMessage.textContent = message;
     statusMessage.className = `status-message ${type} visible`;
 }
 
-// === NEW FUNCTION ===
 // Helper function to convert any image file (including HEIC) to a JPG data URL
 async function convertImageToJpgDataUrl(file, maxPreviewDim = 300, quality = 0.8) {
   return new Promise((resolve, reject) => {
@@ -621,11 +644,6 @@ async function convertImageToJpgDataUrl(file, maxPreviewDim = 300, quality = 0.8
         
         // Get the preview as a JPG data URL
         const dataUrl = canvas.toDataURL("image/jpeg", quality);
-        
-        // We also need to convert the *original file* for the PDF.
-        // But your 'processImageForPdf' already handles this!
-        // It also uses createImageBitmap, which is perfect.
-        // So, we just need to return the preview Data URL.
         resolve(dataUrl);
       })
       .catch(err => {
@@ -654,7 +672,7 @@ async function convertImageToJpgDataUrl(file, maxPreviewDim = 300, quality = 0.8
 }
 
 
-// === Helpers ===
+// Helpers
 // New, more memory-efficient image processing function for PDF generation
 async function processImageForPdf(file, maxDim = 2000, quality = 0.7) {
   return new Promise((resolve, reject) => {
@@ -782,7 +800,8 @@ dropZone.addEventListener('click', () => {
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.multiple = true;
-  fileInput.accept = 'image/*';
+  // === UX CHANGE: Be more specific about accepted types ===
+  fileInput.accept = 'image/jpeg,image/png,image/heif,image/heic';
   fileInput.onchange = () => addImages(fileInput.files);
   fileInput.click();
 });
@@ -790,34 +809,30 @@ dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classL
 dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove("dragover"); addImages(e.dataTransfer.files); });
 
-// === MODIFIED FUNCTION ===
+// === PERFORMANCE CHANGE: Asynchronous image loading ===
 async function addImages(fileList) {
   if (fileList.length > 0) imageListContainer.style.display = 'flex';
   
-  // Create a processing queue to handle images one by one or in batches
-  // This prevents crashing the browser if 100 images are selected
   const filesToProcess = Array.from(fileList).filter(file => file.type.startsWith('image/'));
   
-  for (const file of filesToProcess) {
+  // Show a status update and disable button
+  showStatus(`Processing ${filesToProcess.length} images...`, 'info');
+  generateBtn.disabled = true;
+
+  for (let i = 0; i < filesToProcess.length; i++) {
+    const file = filesToProcess[i];
+    // Update status for every image
+    statusMessage.textContent = `Processing image ${i + 1} of ${filesToProcess.length}...`;
+
     try {
-      // Show a temporary placeholder? (Optional)
-      // ...
-      
-      // Generate a JPG preview for the thumbnail
       const previewDataUrl = await convertImageToJpgDataUrl(file);
 
-      // --- All the original code from here on is mostly the same ---
       const wrapper = document.createElement('div');
       wrapper.classList.add('image-wrapper');
       wrapper.draggable = true;
       
       const previewImg = document.createElement('img');
-      //
-      // === THIS IS THE KEY CHANGE ===
-      // Instead of using an object URL, we use the generated JPG data URL
       previewImg.src = previewDataUrl; 
-      // We no longer need to revoke this URL, as it's just text data
-      //
       previewImg.classList.add('image-item');
 
       previewImg.onclick = () => {
@@ -828,11 +843,12 @@ async function addImages(fileList) {
       const removeBtn = document.createElement('button');
       removeBtn.innerHTML = "×";
       removeBtn.classList.add('remove-image-btn');
+      // === ACCESSIBILITY CHANGE ===
+      removeBtn.ariaLabel = "Remove image"; 
       
       removeBtn.onclick = () => {
         const index = Array.from(imageListContainer.children).indexOf(wrapper);
         if (index > -1) {
-            // We no longer have a previewUrl to revoke, so just remove from array
             images.splice(index, 1);
             wrapper.remove();
             if (images.length === 0) imageListContainer.style.display = 'none';
@@ -851,13 +867,11 @@ async function addImages(fileList) {
       const newImageData = {
           file: file, // Store the ORIGINAL file (HEIC or JPG)
           comment: '',
-          // We don't need previewUrl anymore
           id: 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
       };
       images.push(newImageData);
       wrapper.dataset.id = newImageData.id;
 
-      // ... (rest of the function: add event listeners)
       wrapper.addEventListener('dragstart', handleDragStart, false);
       wrapper.addEventListener('dragenter', handleDragEnter, false);
       wrapper.addEventListener('dragover', handleDragOver, false);
@@ -866,16 +880,24 @@ async function addImages(fileList) {
       wrapper.addEventListener('dragend', handleDragEnd, false);
       wrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
 
+      // **THE IMPORTANT PART**
+      // After each image, pause briefly to let the UI update
+      await new Promise(res => setTimeout(res, 0)); 
+
     } catch (err) {
         console.error("Failed to process image:", file.name, err);
-        showStatus(`Failed to load image: ${file.name}. It might be corrupted.`, "error");
+        showStatus(`Failed to load image: ${file.name}.`, "error");
     }
   }
-}
 
-// === MODIFIED FUNCTION ===
+  // Done! Re-enable button
+  // === UX CHANGE: Add mobile hint ===
+  showStatus(`Added ${filesToProcess.length} images. Hint: Long-press to re-order.`, 'success');
+  generateBtn.disabled = false;
+}
+// === END PERFORMANCE CHANGE ===
+
 document.getElementById('removeAllBtn').addEventListener('click', () => {
-  // images.forEach(imgData => URL.revokeObjectURL(imgData.previewUrl)); // This line is removed
   images = [];
   imageListContainer.innerHTML = '';
   imageListContainer.style.display = 'none';
@@ -915,12 +937,10 @@ modalSaveBtn.addEventListener('click', () => {
   closeImageModal();
 });
 
-// === MODIFIED FUNCTION ===
 modalDeleteBtn.addEventListener('click', () => {
     if (activeImageIndex > -1) {
         const wrapper = imageListContainer.children[activeImageIndex];
         if (wrapper) {
-            // URL.revokeObjectURL(images[activeImageIndex].previewUrl); // This line is removed
             images.splice(activeImageIndex, 1);
             wrapper.remove();
             if (images.length === 0) imageListContainer.style.display = 'none';
@@ -939,6 +959,7 @@ attachmentsDropZone.addEventListener('click', () => {
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.multiple = true;
+  // No 'accept' attribute here, to allow any file type as an attachment
   fileInput.onchange = () => addAttachments(fileInput.files);
   fileInput.click();
 });
@@ -1021,6 +1042,16 @@ generateBtn.addEventListener('click', async () => {
       pdf.addPage();
       let pageNum = 2;
       for (let i = 0; i < images.length; i += perPage) {
+        
+        // === PERFORMANCE CHANGE: Asynchronous PDF page generation ===
+        const pageCount = Math.ceil(images.length / perPage);
+        const currentPage = (i / perPage) + 1;
+        showStatus(`Processing PDF page ${currentPage} of ${pageCount}...`, 'info');
+        
+        // Pause for UI update
+        await new Promise(res => setTimeout(res, 0)); 
+        // === END PERFORMANCE CHANGE ===
+
         const chunk = images.slice(i, i + perPage);
         const spacingX = 10, spacingY = 10;
         const cellWidth = (pageWidth - (perPage + 1) * spacingX) / perPage;
@@ -1093,6 +1124,8 @@ generateBtn.addEventListener('click', async () => {
     }
 
     if (attachments.length > 0) {
+      showStatus('Adding attachments...', 'info');
+      await new Promise(res => setTimeout(res, 0));
       pdf.addPage();
       pdf.setFontSize(16).setFont('helvetica', 'bold');
       pdf.text("Attached Files", pageWidth / 2, 30, { align: 'center' });
@@ -1111,6 +1144,8 @@ generateBtn.addEventListener('click', async () => {
     const pdfFilename = `${vessel}_PicArray_${antenna}_${location.replace(/ /g, '')}_Case${caseNum}_${dateStr.replace(/-/g,'')}.pdf`;
     
     if (attachments.length > 0) {
+      showStatus('Compressing files into ZIP...', 'info');
+      await new Promise(res => setTimeout(res, 0));
       const zip = new JSZip();
       const pdfBlob = new Blob([pdf.output('blob')], { type: 'application/pdf' });
       zip.file(pdfFilename, pdfBlob);
@@ -1126,6 +1161,8 @@ generateBtn.addEventListener('click', async () => {
         showStatus('PDF and ZIP generated successfully!', 'success');
       });
     } else {
+      showStatus('Saving PDF...', 'info');
+      await new Promise(res => setTimeout(res, 0));
       const pdfBlob = pdf.output('blob');
       saveAs(pdfBlob, pdfFilename);
       showStatus('PDF generated successfully!', 'success');
