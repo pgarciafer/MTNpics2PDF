@@ -599,6 +599,61 @@ function showStatus(message, type = 'info') {
     statusMessage.className = `status-message ${type} visible`;
 }
 
+// === NEW FUNCTION ===
+// Helper function to convert any image file (including HEIC) to a JPG data URL
+async function convertImageToJpgDataUrl(file, maxPreviewDim = 300, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    // createImageBitmap is the most memory-efficient way to load an image
+    createImageBitmap(file)
+      .then(imageBitmap => {
+        // Calculate dimensions for a small preview
+        const scale = Math.min(maxPreviewDim / imageBitmap.width, maxPreviewDim / imageBitmap.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = imageBitmap.width * scale;
+        canvas.height = imageBitmap.height * scale;
+        
+        const ctx = canvas.getContext("2d");
+        // Draw the image to the canvas
+        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+        
+        // Good practice to release memory
+        imageBitmap.close(); 
+        
+        // Get the preview as a JPG data URL
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        
+        // We also need to convert the *original file* for the PDF.
+        // But your 'processImageForPdf' already handles this!
+        // It also uses createImageBitmap, which is perfect.
+        // So, we just need to return the preview Data URL.
+        resolve(dataUrl);
+      })
+      .catch(err => {
+        // Fallback for older browsers or formats createImageBitmap fails on
+        // This is less memory efficient but more compatible.
+        console.warn("createImageBitmap failed, falling back to FileReader:", err);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const scale = Math.min(maxPreviewDim / img.width, maxPreviewDim / img.height, 1);
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = reject;
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+  });
+}
+
+
 // === Helpers ===
 // New, more memory-efficient image processing function for PDF generation
 async function processImageForPdf(file, maxDim = 2000, quality = 0.7) {
@@ -735,17 +790,34 @@ dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classL
 dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove("dragover"); addImages(e.dataTransfer.files); });
 
+// === MODIFIED FUNCTION ===
 async function addImages(fileList) {
   if (fileList.length > 0) imageListContainer.style.display = 'flex';
-  for (const file of fileList) {
-    if (file.type.startsWith('image/')) {
+  
+  // Create a processing queue to handle images one by one or in batches
+  // This prevents crashing the browser if 100 images are selected
+  const filesToProcess = Array.from(fileList).filter(file => file.type.startsWith('image/'));
+  
+  for (const file of filesToProcess) {
+    try {
+      // Show a temporary placeholder? (Optional)
+      // ...
+      
+      // Generate a JPG preview for the thumbnail
+      const previewDataUrl = await convertImageToJpgDataUrl(file);
+
+      // --- All the original code from here on is mostly the same ---
       const wrapper = document.createElement('div');
       wrapper.classList.add('image-wrapper');
       wrapper.draggable = true;
       
       const previewImg = document.createElement('img');
-      const objectUrl = URL.createObjectURL(file);
-      previewImg.src = objectUrl;
+      //
+      // === THIS IS THE KEY CHANGE ===
+      // Instead of using an object URL, we use the generated JPG data URL
+      previewImg.src = previewDataUrl; 
+      // We no longer need to revoke this URL, as it's just text data
+      //
       previewImg.classList.add('image-item');
 
       previewImg.onclick = () => {
@@ -760,7 +832,7 @@ async function addImages(fileList) {
       removeBtn.onclick = () => {
         const index = Array.from(imageListContainer.children).indexOf(wrapper);
         if (index > -1) {
-            URL.revokeObjectURL(images[index].previewUrl);
+            // We no longer have a previewUrl to revoke, so just remove from array
             images.splice(index, 1);
             wrapper.remove();
             if (images.length === 0) imageListContainer.style.display = 'none';
@@ -777,29 +849,33 @@ async function addImages(fileList) {
       imageListContainer.appendChild(wrapper);
 
       const newImageData = {
-          file: file,
+          file: file, // Store the ORIGINAL file (HEIC or JPG)
           comment: '',
-          previewUrl: objectUrl,
+          // We don't need previewUrl anymore
           id: 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
       };
       images.push(newImageData);
       wrapper.dataset.id = newImageData.id;
 
+      // ... (rest of the function: add event listeners)
       wrapper.addEventListener('dragstart', handleDragStart, false);
       wrapper.addEventListener('dragenter', handleDragEnter, false);
       wrapper.addEventListener('dragover', handleDragOver, false);
       wrapper.addEventListener('dragleave', handleDragLeave, false);
       wrapper.addEventListener('drop', handleDrop, false);
       wrapper.addEventListener('dragend', handleDragEnd, false);
-
-      // Add touch listener for mobile reordering
       wrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
+
+    } catch (err) {
+        console.error("Failed to process image:", file.name, err);
+        showStatus(`Failed to load image: ${file.name}. It might be corrupted.`, "error");
     }
   }
 }
 
+// === MODIFIED FUNCTION ===
 document.getElementById('removeAllBtn').addEventListener('click', () => {
-  images.forEach(imgData => URL.revokeObjectURL(imgData.previewUrl));
+  // images.forEach(imgData => URL.revokeObjectURL(imgData.previewUrl)); // This line is removed
   images = [];
   imageListContainer.innerHTML = '';
   imageListContainer.style.display = 'none';
@@ -839,11 +915,12 @@ modalSaveBtn.addEventListener('click', () => {
   closeImageModal();
 });
 
+// === MODIFIED FUNCTION ===
 modalDeleteBtn.addEventListener('click', () => {
     if (activeImageIndex > -1) {
         const wrapper = imageListContainer.children[activeImageIndex];
         if (wrapper) {
-            URL.revokeObjectURL(images[activeImageIndex].previewUrl);
+            // URL.revokeObjectURL(images[activeImageIndex].previewUrl); // This line is removed
             images.splice(activeImageIndex, 1);
             wrapper.remove();
             if (images.length === 0) imageListContainer.style.display = 'none';
@@ -958,6 +1035,7 @@ generateBtn.addEventListener('click', async () => {
 
         for (let idx = 0; idx < chunk.length; idx++) {
             const imgData = chunk[idx];
+            // processImageForPdf handles the original file (HEIC or JPG)
             const dataUrl = await processImageForPdf(imgData.file, 2000, compressionQuality);
             if (!dataUrl) continue;
 
