@@ -845,12 +845,12 @@ saveJobInfoBtn.addEventListener('click', () => {
   const jsonString = JSON.stringify(cleanData, null, 2); // Pretty-print JSON
   const blob = new Blob([jsonString], { type: 'text/plain;charset=utf-8' });
   
-  const vesselName = document.getElementById('vesselName').value.trim() || 'job';
-  const caseNum = document.getElementById('caseNumber').value.trim() || 'info';
-  const filename = `${vesselName}_${caseNum}.txt`;
+  // === THIS IS THE REQUESTED CHANGE ===
+  const filename = 'currentrip.txt';
 
   saveAs(blob, filename); // From FileSaver.js
-  showStatus('Job info saved as .txt file!', 'success');
+  showStatus('Job info saved as currentrip.txt!', 'success');
+  // === END OF CHANGE ===
 });
 
 // === NEW: LocalStorage Functions ===
@@ -1154,7 +1154,7 @@ generateBtn.addEventListener('click', async () => {
             await new Promise(res => { img.onload = res; });
             
             const cellAspect = cellWidth / imgContainerHeight;
-            const imgAspect = img.width / img.GET;
+            const imgAspect = img.width / img.height;
             let finalW, finalH;
 
             if (imgAspect > cellAspect) {
