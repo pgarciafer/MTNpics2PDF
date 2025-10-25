@@ -299,17 +299,31 @@ button:active:not(:disabled) {
   to { transform: rotate(1turn); }
 }
 
+/* === NEW CSS FOR BUTTONS === */
+.job-info-buttons {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
 
 .job-info-btn {
   width: 100%;
   background-color: var(--primary-color);
   color: white;
-  margin-bottom: 24px;
 }
-
 .job-info-btn:hover:not(:disabled) {
   background-color: var(--primary-hover);
 }
+
+/* Style for the new save button */
+.job-info-btn.save {
+  background-color: var(--secondary-color);
+}
+.job-info-btn.save:hover:not(:disabled) {
+  background-color: var(--secondary-hover);
+}
+/* === END NEW CSS === */
+
 
 .required-label {
   color: var(--danger-color);
@@ -472,6 +486,10 @@ button.remove-btn:hover:not(:disabled) {
     min-height: 60px;
     width: 100%;
   }
+  /* === NEW: Stack buttons on mobile === */
+  .job-info-buttons {
+    flex-direction: column;
+  }
 }
 
 /* Styles for touch-based drag and drop */
@@ -502,10 +520,10 @@ button.remove-btn:hover:not(:disabled) {
   </div>
 </div>
 
-<div class="job-info-container">
-  <button id="jobInfoLabel" class="job-info-btn">Load/Update Current Job Info (.txt)</button>
+<div class="job-info-buttons">
+  <button id="loadJobInfoBtn" class="job-info-btn">Load Job Info (.txt)</button>
+  <button id="saveJobInfoBtn" class="job-info-btn save">Save Job Info (.txt)</button>
 </div>
-
 <div class="drop-zone-section">
   <div class="drop-zone" id="dropZone" tabindex="0">
     <p>📁 Drag & Drop Pictures Here or Click</p>
@@ -589,6 +607,12 @@ const attachmentsDropZone = document.getElementById('attachmentsDropZone');
 const attachmentListContainer = document.getElementById('attachmentListContainer');
 const generateBtn = document.getElementById('generatePDF');
 const statusMessage = document.getElementById('statusMessage');
+
+// === NEW: Button and LocalStorage variables ===
+const loadJobInfoBtn = document.getElementById('loadJobInfoBtn');
+const saveJobInfoBtn = document.getElementById('saveJobInfoBtn');
+const jobInfoInputIds = ["vesselName", "antennaModel", "antennaLocation", "caseNumber", "submittedBy"];
+// === END NEW ===
 
 // Modal elements
 const imageModal = document.getElementById('imageModal');
@@ -735,7 +759,8 @@ function formatSubmittedby(name) {
 
 let jobFileHandle = null;
 
-document.getElementById("jobInfoLabel").addEventListener("click", async () => {
+// === RENAMED: from "jobInfoLabel" to "loadJobInfoBtn" ===
+loadJobInfoBtn.addEventListener("click", async () => {
   const openWithInput = () => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -747,6 +772,8 @@ document.getElementById("jobInfoLabel").addEventListener("click", async () => {
           const text = await file.text();
           const data = JSON.parse(text);
           populateJobInfo(data);
+          // === NEW: Save loaded data to local storage ===
+          saveFormToLocalStorage();
       } catch (err) {
           console.error(err);
           showStatus("Failed to process job info file.", "error");
@@ -773,6 +800,8 @@ document.getElementById("jobInfoLabel").addEventListener("click", async () => {
     const text = await file.text();
     const data = JSON.parse(text);
     populateJobInfo(data);
+    // === NEW: Save loaded data to local storage ===
+    saveFormToLocalStorage();
 
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -794,6 +823,63 @@ function populateJobInfo(data) {
   if (data["TECH"]) document.getElementById("submittedBy").value = formatSubmittedby(data["TECH"]);
   showStatus("Current Job Info loaded successfully!", "success");
 }
+
+// === NEW: "Save Job Info" Button functionality ===
+saveJobInfoBtn.addEventListener('click', () => {
+  const data = {};
+  jobInfoInputIds.forEach(id => {
+    data[id] = document.getElementById(id).value;
+  });
+
+  // Create a JSON object in the same format that "Load" expects
+  const cleanData = {
+    "VESSEL": data.vesselName,
+    // Try to split model and SN, fallback to empty string
+    "ANTENNA": (data.antennaModel.split('_SN')[0] || data.antennaModel).split('_')[0],
+    "ANTENNA SN": data.antennaModel.split('_SN')[1] || '',
+    "LOCATION": data.antennaLocation,
+    "INCIDENT": data.caseNumber,
+    "TECH": data.submittedBy
+  };
+
+  const jsonString = JSON.stringify(cleanData, null, 2); // Pretty-print JSON
+  const blob = new Blob([jsonString], { type: 'text/plain;charset=utf-8' });
+  
+  const vesselName = document.getElementById('vesselName').value.trim() || 'job';
+  const caseNum = document.getElementById('caseNumber').value.trim() || 'info';
+  const filename = `${vesselName}_${caseNum}.txt`;
+
+  saveAs(blob, filename); // From FileSaver.js
+  showStatus('Job info saved as .txt file!', 'success');
+});
+
+// === NEW: LocalStorage Functions ===
+function saveFormToLocalStorage() {
+  const data = {};
+  jobInfoInputIds.forEach(id => {
+    data[id] = document.getElementById(id).value;
+  });
+  localStorage.setItem('jobInfoForm', JSON.stringify(data));
+}
+
+function loadFormFromLocalStorage() {
+  const savedData = localStorage.getItem('jobInfoForm');
+  if (savedData) {
+    try {
+      const data = JSON.parse(savedData);
+      jobInfoInputIds.forEach(id => {
+        if (data[id]) {
+          document.getElementById(id).value = data[id];
+        }
+      });
+    } catch (e) {
+      console.error("Failed to parse saved job info:", e);
+      localStorage.removeItem('jobInfoForm'); // Clear corrupted data
+    }
+  }
+}
+// === END NEW ===
+
 
 dropZone.addEventListener('click', () => {
   const fileInput = document.createElement('input');
@@ -1068,7 +1154,7 @@ generateBtn.addEventListener('click', async () => {
             await new Promise(res => { img.onload = res; });
             
             const cellAspect = cellWidth / imgContainerHeight;
-            const imgAspect = img.width / img.height;
+            const imgAspect = img.width / img.GET;
             let finalW, finalH;
 
             if (imgAspect > cellAspect) {
@@ -1155,15 +1241,11 @@ generateBtn.addEventListener('click', async () => {
         showStatus('PDF and ZIP generated successfully!', 'success');
       });
     } else {
-      // === THIS IS THE MODIFIED PART ===
       // This path (no attachments) now uses pdf.save() for a better mobile experience
       showStatus('Saving PDF...', 'info');
       await new Promise(res => setTimeout(res, 0));
-      // const pdfBlob = pdf.output('blob'); // No longer needed
-      // saveAs(pdfBlob, pdfFilename); // Replaced this...
-      pdf.save(pdfFilename); // ...with this
+      pdf.save(pdfFilename); // Uses jsPDF's built-in save
       showStatus('PDF generated successfully!', 'success');
-      // === END OF MODIFICATION ===
     }
 
   } catch (err) {
@@ -1367,6 +1449,14 @@ function handleTouchEnd(e) {
   placeholder = null;
   startRect = null;
 }
+
+// === NEW: Add listeners for auto-saving form data ===
+jobInfoInputIds.forEach(id => {
+  document.getElementById(id).addEventListener('input', saveFormToLocalStorage);
+});
+
+// === NEW: Load saved form data on page load ===
+document.addEventListener('DOMContentLoaded', loadFormFromLocalStorage);
 </script>
 </body>
 </html>
