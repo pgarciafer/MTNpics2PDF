@@ -1282,11 +1282,13 @@ generateBtn.addEventListener('click', async () => {
             const imgAspect = img.width / img.height;
             let finalW, finalH;
 
+            const imageScaleFactor = 0.80; // Reduced from 0.95 to make images ~15% smaller
+
             if (imgAspect > cellAspect) {
-                finalW = cellWidth * 0.95;
+                finalW = cellWidth * imageScaleFactor;
                 finalH = finalW / imgAspect;
             } else {
-                finalH = imgContainerHeight * 0.95;
+                finalH = imgContainerHeight * imageScaleFactor;
                 finalW = finalH * imgAspect;
             }
 
@@ -1371,7 +1373,8 @@ generateBtn.addEventListener('click', async () => {
         const pdfBlob = pdf.output('blob');
         pdfPreviewData = { blob: pdfBlob, filename: pdfFilename };
         const blobUrl = URL.createObjectURL(pdfBlob);
-        document.getElementById('pdfViewer').src = blobUrl;
+        // Add #view=FitH to scale the PDF to fit the width of the viewer
+        document.getElementById('pdfViewer').src = `${blobUrl}#view=FitH`;
         pdfPreviewModal.style.display = 'flex';
         // Note: The generate button remains in a loading state until the preview is closed.
     } else {
