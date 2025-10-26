@@ -1250,10 +1250,10 @@ generateBtn.addEventListener('click', async () => {
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         try {
+          // By removing the 'title' and 'text' properties, only the file will be shared.
+          // This prevents iOS from creating an extra .txt file or adding text to the share payload.
           await navigator.share({
-            files: [pdfFile],
-            title: 'Job Pictures PDF',
-            text: pdfFilename
+            files: [pdfFile]
           });
           showStatus('PDF shared successfully!', 'success');
         } catch (error) {
