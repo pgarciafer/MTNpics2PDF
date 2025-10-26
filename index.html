@@ -1241,11 +1241,36 @@ generateBtn.addEventListener('click', async () => {
         showStatus('PDF and ZIP generated successfully!', 'success');
       });
     } else {
-      // This path (no attachments) now uses pdf.save() for a better mobile experience
-      showStatus('Saving PDF...', 'info');
+      // No attachments, attempt to use Web Share API for a better mobile experience
+      showStatus('Preparing PDF...', 'info');
       await new Promise(res => setTimeout(res, 0));
-      pdf.save(pdfFilename); // Uses jsPDF's built-in save
-      showStatus('PDF generated successfully!', 'success');
+      
+      const pdfBlob = pdf.output('blob');
+      const pdfFile = new File([pdfBlob], pdfFilename, { type: 'application/pdf' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: 'Job Pictures PDF',
+            text: pdfFilename
+          });
+          showStatus('PDF shared successfully!', 'success');
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            showStatus('Sharing cancelled.', 'info');
+          } else {
+            console.error('Web Share API error:', error);
+            showStatus('Could not share. Saving PDF instead...', 'info');
+            pdf.save(pdfFilename); // Fallback to save if sharing fails
+          }
+        }
+      } else {
+        // Fallback for browsers that don't support sharing files
+        showStatus('Saving PDF...', 'info');
+        pdf.save(pdfFilename);
+        showStatus('PDF generated successfully!', 'success');
+      }
     }
 
   } catch (err) {
