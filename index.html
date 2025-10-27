@@ -462,61 +462,6 @@ button.remove-btn:hover:not(:disabled) {
   display: block;
 }
 
-/* PDF Preview Modal Styles */
-.pdf-preview-content {
-  background: white;
-  border-radius: 8px;
-  width: 95%;
-  height: 90vh;
-  max-width: 800px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-  display: flex;
-  flex-direction: column;
-}
-.pdf-preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-.pdf-preview-header h2 {
-  margin: 0;
-  font-size: 18px;
-  color: var(--primary-color);
-}
-#closePreviewBtn {
-  background: none;
-  border: none;
-  font-size: 28px;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0 8px;
-  line-height: 1;
-}
-.pdf-viewer-container {
-  flex-grow: 1;
-  overflow: hidden; /* Important for iframe */
-}
-#pdfViewer {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-.pdf-preview-actions {
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: center;
-  flex-shrink: 0;
-}
-#sharePdfBtn {
-  width: 100%;
-  max-width: 300px;
-}
-
-
 /* Responsive */
 @media (max-width: 768px) {
   body {
@@ -651,21 +596,6 @@ button.remove-btn:hover:not(:disabled) {
   </div>
 </div>
 
-<div id="pdfPreviewModal" class="modal-overlay" style="display: none;">
-  <div class="pdf-preview-content">
-    <div class="pdf-preview-header">
-      <h2>PDF Preview</h2>
-      <button id="closePreviewBtn" aria-label="Close preview">&times;</button>
-    </div>
-    <div class="pdf-viewer-container">
-      <iframe id="pdfViewer"></iframe>
-    </div>
-    <div class="pdf-preview-actions">
-      <button id="sharePdfBtn" class="job-info-btn">Share PDF</button>
-    </div>
-  </div>
-</div>
-
 <script>
 const { jsPDF } = window.jspdf;
 let images = [];
@@ -691,12 +621,6 @@ const modalSaveBtn = document.getElementById('modalSaveBtn');
 const modalDeleteBtn = document.getElementById('modalDeleteBtn');
 const modalCancelBtn = document.getElementById('modalCancelBtn');
 let activeImageIndex = -1;
-
-// PDF Preview Modal elements
-const pdfPreviewModal = document.getElementById('pdfPreviewModal');
-const closePreviewBtn = document.getElementById('closePreviewBtn');
-const sharePdfBtn = document.getElementById('sharePdfBtn');
-let pdfPreviewData = null;
 
 
 // Default date
@@ -831,10 +755,6 @@ function formatSubmittedby(name) {
     .split(/\s+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
-}
-
-function isMobile() {
-    return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
 let jobFileHandle = null;
@@ -1144,54 +1064,6 @@ document.getElementById('removeAllAttachmentsBtn').addEventListener('click', () 
   showStatus('All attachments removed.', 'info');
 });
 
-function closePreviewModal() {
-    const pdfViewer = document.getElementById('pdfViewer');
-    if (pdfViewer.src) {
-        URL.revokeObjectURL(pdfViewer.src);
-        pdfViewer.src = 'about:blank';
-    }
-    pdfPreviewModal.style.display = 'none';
-    pdfPreviewData = null;
-
-    generateBtn.disabled = false;
-    generateBtn.classList.remove('loading');
-    showStatus('Preview closed.', 'info');
-}
-
-closePreviewBtn.addEventListener('click', closePreviewModal);
-pdfPreviewModal.addEventListener('click', (e) => {
-    if (e.target === pdfPreviewModal) {
-        closePreviewModal();
-    }
-});
-
-sharePdfBtn.addEventListener('click', async () => {
-    if (!pdfPreviewData || !pdfPreviewData.blob) return;
-
-    const { blob, filename } = pdfPreviewData;
-    const pdfFile = new File([blob], filename, { type: 'application/pdf' });
-
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-            await navigator.share({ files: [pdfFile] });
-            showStatus('PDF shared successfully!', 'success');
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                showStatus('Sharing cancelled.', 'info');
-            } else {
-                console.error('Web Share API error:', error);
-                showStatus('Could not share file.', 'error');
-            }
-        } finally {
-            closePreviewModal(); // Close modal regardless of share outcome
-        }
-    } else {
-        showStatus('Web Share not supported on this browser.', 'error');
-        // We still close the modal and let the user know.
-        closePreviewModal();
-    }
-});
-
 
 generateBtn.addEventListener('click', async () => {
   statusMessage.className = 'status-message';
@@ -1251,10 +1123,12 @@ generateBtn.addEventListener('click', async () => {
       let pageNum = 2;
       for (let i = 0; i < images.length; i += perPage) {
         
+        // Asynchronous PDF page generation
         const pageCount = Math.ceil(images.length / perPage);
         const currentPage = (i / perPage) + 1;
         showStatus(`Processing PDF page ${currentPage} of ${pageCount}...`, 'info');
         
+        // Pause for UI update
         await new Promise(res => setTimeout(res, 0)); 
 
         const chunk = images.slice(i, i + perPage);
@@ -1271,6 +1145,7 @@ generateBtn.addEventListener('click', async () => {
 
         for (let idx = 0; idx < chunk.length; idx++) {
             const imgData = chunk[idx];
+            // processImageForPdf handles the original file (HEIC or JPG)
             const dataUrl = await processImageForPdf(imgData.file, 2000, compressionQuality);
             if (!dataUrl) continue;
 
@@ -1282,13 +1157,11 @@ generateBtn.addEventListener('click', async () => {
             const imgAspect = img.width / img.height;
             let finalW, finalH;
 
-            const imageScaleFactor = 0.80; // Reduced from 0.95 to make images ~15% smaller
-
             if (imgAspect > cellAspect) {
-                finalW = cellWidth * imageScaleFactor;
+                finalW = cellWidth * 0.95;
                 finalH = finalW / imgAspect;
             } else {
-                finalH = imgContainerHeight * imageScaleFactor;
+                finalH = imgContainerHeight * 0.95;
                 finalW = finalH * imgAspect;
             }
 
@@ -1363,32 +1236,54 @@ generateBtn.addEventListener('click', async () => {
 
       const zipFilename = pdfFilename.replace('.pdf', '.zip');
       zip.generateAsync({ type: "blob" }).then(content => {
+        // ZIP files MUST use saveAs from FileSaver.js
         saveAs(content, zipFilename);
         showStatus('PDF and ZIP generated successfully!', 'success');
-        generateBtn.disabled = false;
-        generateBtn.classList.remove('loading');
       });
-    } else if (isMobile()) {
-        showStatus('PDF generated. Showing preview...', 'success');
-        const pdfBlob = pdf.output('blob');
-        pdfPreviewData = { blob: pdfBlob, filename: pdfFilename };
-        const blobUrl = URL.createObjectURL(pdfBlob);
-        // Add #view=FitH to scale the PDF to fit the width of the viewer
-        document.getElementById('pdfViewer').src = `${blobUrl}#view=FitH`;
-        pdfPreviewModal.style.display = 'flex';
-        // Note: The generate button remains in a loading state until the preview is closed.
     } else {
-      // On desktop, just save the file directly
-      showStatus('Saving PDF...', 'info');
-      pdf.save(pdfFilename);
-      showStatus('PDF generated successfully!', 'success');
-      generateBtn.disabled = false;
-      generateBtn.classList.remove('loading');
+      function isMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      }
+
+      if (isMobile() && images.length > 0) {
+        showStatus('Generating PDF for preview...', 'info');
+        await new Promise(res => setTimeout(res, 0));
+        const pdfBlob = pdf.output('blob');
+        
+        // For mobile, open in a new tab for previewing.
+        // This method is more robust for sharing as we can set the window title.
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        const previewWindow = window.open('', '_blank');
+
+        if (previewWindow) {
+          previewWindow.document.title = pdfFilename;
+          previewWindow.document.body.style.margin = '0';
+          previewWindow.document.body.style.overflow = 'hidden';
+          const iframe = previewWindow.document.createElement('iframe');
+          iframe.src = blobUrl;
+          iframe.style.width = '100vw';
+          iframe.style.height = '100vh';
+          iframe.style.border = 'none';
+          previewWindow.document.body.appendChild(iframe);
+          showStatus('PDF generated! Check the new tab to view or share.', 'success');
+        } else {
+          showStatus('Popup blocked. Downloading PDF directly.', 'error');
+          // Fallback to direct download
+          pdf.save(pdfFilename);
+        }
+      } else {
+        // For desktop or if there are no images, download directly.
+        showStatus('Saving PDF...', 'info');
+        await new Promise(res => setTimeout(res, 0));
+        pdf.save(pdfFilename); // Uses jsPDF's built-in save
+        showStatus('PDF generated successfully!', 'success');
+      }
     }
 
   } catch (err) {
     showStatus(err.message || "Error generating PDF/ZIP.", "error");
     console.error(err);
+  } finally {
     generateBtn.disabled = false;
     generateBtn.classList.remove('loading');
   }
