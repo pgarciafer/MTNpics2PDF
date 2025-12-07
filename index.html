@@ -574,6 +574,80 @@ async function processImageForPdf(file, maxDim = 2000, quality = 0.7) {
   });
 }
 
+// === NEW: iLovePDF Integration Logic ===
+async function compressPDFWithILovePDF(pdfBlob, filename) {
+    try {
+        // 1. Auth
+        showStatus("Authenticating with iLovePDF...", "info");
+        const authResponse = await fetch('https://api.ilovepdf.com/v1/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public_key: ILOVEPDF_PUBLIC_KEY })
+        });
+        
+        if (!authResponse.ok) throw new Error("Auth failed: " + authResponse.statusText);
+        const { token } = await authResponse.json();
+
+        // 2. Start Task
+        showStatus("Starting compression task...", "info");
+        const startResponse = await fetch('https://api.ilovepdf.com/v1/start/compress', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!startResponse.ok) throw new Error("Start task failed");
+        const { server, task } = await startResponse.json();
+
+        // 3. Upload File
+        showStatus("Uploading PDF to iLovePDF...", "info");
+        const formData = new FormData();
+        formData.append('task', task);
+        formData.append('file', pdfBlob, filename);
+
+        const uploadResponse = await fetch(`https://${server}/v1/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+
+        if (!uploadResponse.ok) throw new Error("Upload failed");
+        const uploadData = await uploadResponse.json();
+
+        // 4. Process Task
+        showStatus("Compressing PDF in cloud...", "info");
+        const processResponse = await fetch(`https://${server}/v1/process`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                task: task,
+                tool: 'compress',
+                files: [{ server_filename: uploadData.server_filename, filename: filename }]
+            })
+        });
+
+        if (!processResponse.ok) throw new Error("Processing failed");
+
+        // 5. Download
+        showStatus("Downloading compressed PDF...", "info");
+        const downloadResponse = await fetch(`https://${server}/v1/download/${task}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!downloadResponse.ok) throw new Error("Download failed");
+        
+        return await downloadResponse.blob();
+
+    } catch (error) {
+        console.error("iLovePDF Error:", error);
+        throw new Error("Online compression failed. " + error.message);
+    }
+}
+// === END iLovePDF Logic ===
+
 function formatVesselName(raw) {
   if (!raw) return "";
   let clean = raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
@@ -1006,23 +1080,49 @@ generateBtn.addEventListener('click', async () => {
 
     const pdfFilename = `${vessel}_PicArray_${antenna}_${location.replace(/ /g, '')}_Case${caseNum}_${dateStr.replace(/-/g,'')}.pdf`;
     
+    // === NEW: ZIP or Direct PDF Logic ===
     if (attachments.length > 0) {
       showStatus('Compressing ZIP...', 'info');
       const zip = new JSZip();
       
-      // Use pdf.output('blob') to ensure consistent binary generation
-      const pdfBlob = pdf.output('blob');
-      zip.file(pdfFilename, pdfBlob);
+      let pdfBlob = pdf.output('blob');
       
+      // === iLovePDF Integration for ZIP ===
+      const useILovePdf = document.getElementById('compressPdf').checked;
+      if (useILovePdf) {
+         try {
+             pdfBlob = await compressPDFWithILovePDF(pdfBlob, pdfFilename);
+         } catch (e) {
+             console.error("Online compression failed, using standard.", e);
+             showStatus("Online compression failed. Using standard.", "error");
+             await new Promise(r => setTimeout(r, 2000));
+         }
+      }
+
+      zip.file(pdfFilename, pdfBlob);
       const folder = zip.folder("attachments");
       attachments.forEach(f => folder.file(f.name, f));
       
       const content = await zip.generateAsync({ type: "blob" });
       saveAs(content, pdfFilename.replace('.pdf', '.zip'));
       showStatus('Success!', 'success');
+
     } else {
-      // Direct Download Fallback logic matching index.html capabilities
-      const pdfBlob = pdf.output('blob');
+      // === Standard PDF Download / Share Logic ===
+      let pdfBlob = pdf.output('blob');
+      
+      // === iLovePDF Integration for Single PDF ===
+      const useILovePdf = document.getElementById('compressPdf').checked;
+      if (useILovePdf) {
+         try {
+             pdfBlob = await compressPDFWithILovePDF(pdfBlob, pdfFilename);
+         } catch (e) {
+             console.error("Online compression failed, using standard.", e);
+             showStatus("Online compression failed. Using standard.", "error");
+             await new Promise(r => setTimeout(r, 2000));
+         }
+      }
+
       const pdfFile = new File([pdfBlob], pdfFilename, { type: 'application/pdf' });
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
@@ -1035,14 +1135,14 @@ generateBtn.addEventListener('click', async () => {
             showStatus('PDF shared successfully!', 'success');
         } catch (error) {
             if (error.name !== 'AbortError') {
-                pdf.save(pdfFilename);
+                saveAs(pdfBlob, pdfFilename);
                 showStatus('PDF generated successfully!', 'success');
             } else {
                 showStatus('Share cancelled.', 'info');
             }
         }
       } else {
-          pdf.save(pdfFilename);
+          saveAs(pdfBlob, pdfFilename);
           showStatus('PDF generated successfully!', 'success');
       }
     }
