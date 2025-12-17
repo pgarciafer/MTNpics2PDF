@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pictures to PDF Generator</title>
+
+<link rel="icon" href="https://pgarciafer.github.io/shared-design-system/icons/Favicon-MTN.png" type="image/png">
+<link rel="stylesheet" href="https://pgarciafer.github.io/shared-design-system/css/style.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+<style>
+/* --- APP-SPECIFIC STYLES --- */
+
+/* Force Centering Override */
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.container {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  background: var(--container-bg);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
+}
+
+/* Form Elements */
+label {
+  display: block;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--mtn-blue);
+  font-size: 14px;
+}
+
+input, select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  font-size: 15px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  background-color: #fff;
+  color: var(--text-color);
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(27, 80, 135, 0.2);
+}
+
+/* Drop Zone Styles */
+.drop-zone-section {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.drop-zone {
+  border: 2px dashed var(--mtn-sky);
+  background: #fafcff;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--primary-color);
+  background: #e6f0fa;
+}
+
+.drop-zone p {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* Image List Styles */
+.image-list-container, .attachment-list-container {
+  border: 1px solid var(--border-color);
+  min-height: 100px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8f9fa;
+  display: none;
+  gap: 12px;
+}
+
+.image-list-container {
+  display: none;
+  flex-wrap: wrap;
+}
+
+.image-wrapper {
+  position: relative;
+  user-select: none;
+}
+
+.image-item {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.image-item:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.image-wrapper.dragging { opacity: 0.5; }
+.image-wrapper.over { outline: 2px dashed var(--primary-color); outline-offset: 2px; }
+
+.remove-image-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--danger-color);
+  color: white;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all 0.3s;
+  z-index: 10;
+}
+.remove-image-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  background-color: var(--danger-hover);
+}
+
+.attachment-item {
+  font-size: 14px;
+  color: var(--text-color);
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+.attachment-item:last-child { border-bottom: none; }
+
+/* Buttons */
+.button-group { margin-top: 32px; }
+
+button {
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: background-color 0.15s ease-in-out, transform 0.1s ease;
+}
+
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+button:active:not(:disabled) { transform: scale(0.98); }
+
+#generatePDF {
+  width: 100%;
+  background-color: var(--primary-color);
+  color: white;
+}
+#generatePDF:hover:not(:disabled) { background-color: var(--primary-hover); }
+
+#generatePDF.loading span { visibility: hidden; }
+#generatePDF.loading::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  top: 0; left: 0; right: 0; bottom: 0;
+  margin: auto;
+  border: 4px solid transparent;
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: button-loading-spinner 1s ease infinite;
+}
+@keyframes button-loading-spinner {
+  from { transform: rotate(0turn); }
+  to { transform: rotate(1turn); }
+}
+
+.job-info-buttons {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.job-info-btn {
+  width: 100%;
+  background-color: var(--primary-color);
+  color: white;
+}
+.job-info-btn:hover:not(:disabled) { background-color: var(--primary-hover); }
+.job-info-btn.save { background-color: var(--secondary-color); }
+.job-info-btn.save:hover:not(:disabled) { background-color: var(--secondary-hover); }
+
+button.remove-btn {
+  background-color: white;
+  color: var(--danger-color);
+  height: 100%;
+  border: 1px solid var(--danger-color);
+  min-width: 120px;
+}
+button.remove-btn:hover:not(:disabled) {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+.status-message {
+  text-align: center;
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  display: none;
+}
+.status-message.visible { display: block; }
+.status-message.success { background-color: #e9f7ef; color: #155724; }
+.status-message.error { background-color: #f8d7da; color: #721c24; }
+.status-message.info { background-color: rgba(27, 80, 135, 0.1); color: var(--primary-color); }
+
+.required-label { color: var(--danger-color); font-weight: 600; }
+.invalid { border-color: var(--danger-color) !important; box-shadow: var(--input-invalid-shadow) !important; }
+
+.attachment-section { margin-top: 32px; }
+#dateField { width: 75%; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+.modal-content h2 { margin-top: 0; color: var(--primary-color); }
+.modal-content textarea {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  font-size: 15px;
+  resize: vertical;
+  margin-bottom: 16px;
+}
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+#modalSaveBtn { background-color: var(--primary-color); color: white; }
+#modalDeleteBtn { background-color: var(--danger-color); color: white; border: none; }
+#modalCancelBtn { background-color: var(--secondary-color); color: white; }
+
+.comment-icon {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  font-size: 18px;
+  display: none;
+  pointer-events: none;
+  text-shadow: 0 0 3px white, 0 0 3px white;
+}
+.comment-icon.visible { display: block; }
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  margin-top: 24px;
+  margin-bottom: -16px; /* Pull the button group up */
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+.checkbox-container input[type="checkbox"] {
+  width: auto;
+  margin-right: 12px;
+  transform: scale(1.2);
+  cursor: pointer;
+}
+.checkbox-container label {
+  margin: 0;
+  font-weight: 500;
+  color: var(--text-color);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  body { padding: 16px; }
+  .container { padding: 24px; }
+}
+@media (max-width: 600px) {
+  .drop-zone-section { grid-template-columns: 1fr; }
+  button.remove-btn { min-height: 60px; width: 100%; }
+  .job-info-buttons { flex-direction: column; }
+}
+
+/* Touch Drag */
+.image-wrapper.touch-dragging {
+  opacity: 0.8;
+  transform-origin: center center;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  z-index: 1000;
+  transition: none;
+}
+.placeholder {
+  background-color: #e9ecef;
+  border: 2px dashed var(--primary-color);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  
+  <header class="shared-header">
+    <a href="https://www.mtnsat.com" target="_blank">
+      <img src="https://pgarciafer.github.io/shared-design-system/icons/logo.png" alt="MTN Logo">
+    </a>
+    <h1>Pictures to PDF Generator</h1>
+  </header>
+
+<div class="job-info-buttons">
+  <button id="loadJobInfoBtn" class="job-info-btn">Load Job Info (.txt)</button>
+  <button id="saveJobInfoBtn" class="job-info-btn save">Save Job Info (.txt)</button>
+</div>
+
+<div class="drop-zone-section">
+  <div class="drop-zone" id="dropZone" tabindex="0">
+    <p>📂 Drag & Drop Pictures Here or Click</p>
+  </div>
+  <button id="removeAllBtn" class="remove-btn">Remove All</button>
+</div>
+<div class="image-list-container" id="imageListContainer"></div>
+
+<div class="attachment-section">
+  <div class="drop-zone-section">
+    <div class="drop-zone" id="attachmentsDropZone" tabindex="0">
+      <p>📎 Drag & Drop Attachments Here or Click</p>
+    </div>
+    <button id="removeAllAttachmentsBtn" class="remove-btn">Remove All</button>
+  </div>
+  <div class="attachment-list-container" id="attachmentListContainer"></div>
+</div>
+
+<label for="vesselName">3LC_VesselName: <span class="required-label">*</span></label>
+<input type="text" id="vesselName" placeholder="e.g., NCL_RoyalClipper">
+
+<label for="antennaModel">AntennaBrandModel_SNxxx: <span class="required-label">*</span></label>
+<input type="text" id="antennaModel" placeholder="e.g., Intellian-v100_SN24536">
+
+<label for="antennaLocation">Antenna Location: <span class="required-label">*</span></label>
+<input type="text" id="antennaLocation" placeholder="e.g., Deck 1 Starboard">
+
+<label for="caseNumber">Case Number: <span class="required-label">*</span></label>
+<input type="tel" id="caseNumber" inputmode="numeric" pattern="[0-9]*" placeholder="e.g., 35234">
+
+<label for="submittedBy">Submitted By: <span class="required-label">*</span></label>
+<input type="text" id="submittedBy" placeholder="e.g., Pablo Garcia">
+
+<label for="dateField">Date: <span class="required-label">*</span></label>
+<input type="date" id="dateField">
+
+<label for="imagesPerPage">Images per page (1-4):</label>
+<select id="imagesPerPage">
+  <option value="1">1</option>
+  <option value="2" selected>2</option>
+  <option value="3">3</option>
+  <option value="4">4</option>
+</select>
+
+<label for="compressionLevel">Image Quality:</label>
+<select id="compressionLevel">
+  <option value="0.9">Best (Larger File Size)</option>
+  <option value="0.7" selected>Good (Recommended)</option>
+  <option value="0.5">Standard (Smallest File Size)</option>
+</select>
+
+<div class="checkbox-container">
+  <input type="checkbox" id="compressPdf">
+  <label for="compressPdf">Compress PDF with iLovePDF (Online)</label>
+</div>
+
+<div class="button-group">
+  <button id="generatePDF"><span>Generate PDF & ZIP</span></button>
+</div>
+
+<div class="status-message" id="statusMessage"></div>
+</div>
+
+<div id="imageModal" class="modal-overlay" style="display: none;">
+  <div class="modal-content">
+    <h2>Edit Image</h2>
+    <label for="imageComment">Comment:</label>
+    <textarea id="imageComment" rows="4" placeholder="Add a comment to display under the image in the PDF..."></textarea>
+    <div class="modal-buttons">
+      <button id="modalSaveBtn">Save Comment</button>
+      <button id="modalDeleteBtn" class="remove-btn" style="border: 1px solid transparent; color: white;">Delete Image</button>
+      <button id="modalCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const { jsPDF } = window.jspdf;
+// I LOVE PDF KEY 
+const ILOVEPDF_PUBLIC_KEY = 'project_public_45717f2112c002ca935583d7bb839134_IKjet4326dd7221e73fb14f7a5f97819300d2';
+
+let images = [];
+let attachments = [];
+let dragSrcEl = null; 
+const dropZone = document.getElementById('dropZone');
+const imageListContainer = document.getElementById('imageListContainer');
+const attachmentsDropZone = document.getElementById('attachmentsDropZone');
+const attachmentListContainer = document.getElementById('attachmentListContainer');
+const generateBtn = document.getElementById('generatePDF');
+const statusMessage = document.getElementById('statusMessage');
+
+const loadJobInfoBtn = document.getElementById('loadJobInfoBtn');
+const saveJobInfoBtn = document.getElementById('saveJobInfoBtn');
+const jobInfoInputIds = ["vesselName", "antennaModel", "antennaLocation", "caseNumber", "submittedBy"];
+
+const imageModal = document.getElementById('imageModal');
+const imageCommentTextarea = document.getElementById('imageComment');
+const modalSaveBtn = document.getElementById('modalSaveBtn');
+const modalDeleteBtn = document.getElementById('modalDeleteBtn');
+const modalCancelBtn = document.getElementById('modalCancelBtn');
+let activeImageIndex = -1;
+
+document.getElementById("dateField").value = new Date().toISOString().split("T")[0];
+
+function setupDropZoneAccessibility(zoneId) {
+  const zone = document.getElementById(zoneId);
+  zone.addEventListener('keydown', (e) => {
+    if (e.keyCode === 32 || e.keyCode === 13) {
+      e.preventDefault();
+      zone.click();
+    }
+  });
+}
+setupDropZoneAccessibility('dropZone');
+setupDropZoneAccessibility('attachmentsDropZone');
+
+function showStatus(message, type = 'info') {
+    statusMessage.textContent = message;
+    statusMessage.className = `status-message ${type} visible`;
+}
+
+// Helper for Preview Thumbs (Fast)
+async function convertImageToJpgDataUrl(file, maxPreviewDim = 300, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    createImageBitmap(file)
+      .then(imageBitmap => {
+        const scale = Math.min(maxPreviewDim / imageBitmap.width, maxPreviewDim / imageBitmap.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = imageBitmap.width * scale;
+        canvas.height = imageBitmap.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+        imageBitmap.close(); 
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      })
+      .catch(err => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const scale = Math.min(maxPreviewDim / img.width, maxPreviewDim / img.height, 1);
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = reject;
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+  });
+}
+
+// Core Compression Logic for PDF (Identical to index.html)
+async function processImageForPdf(file, maxDim = 2000, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    createImageBitmap(file)
+      .then(imageBitmap => {
+        const scale = Math.min(maxDim / imageBitmap.width, maxDim / imageBitmap.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = imageBitmap.width * scale;
+        canvas.height = imageBitmap.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+        
+        imageBitmap.close(); // Release memory
+
+        // Force JPEG compression via Blob
+        canvas.toBlob(blob => {
+          if (!blob) {
+            return reject(new Error("Canvas to Blob conversion failed."));
+          }
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read blob as Data URL."));
+          reader.readAsDataURL(blob);
+        }, "image/jpeg", quality);
+      })
+      .catch(err => reject(err));
+  });
+}
+
+// === NEW: iLovePDF Integration Logic ===
+async function compressPDFWithILovePDF(pdfBlob, filename) {
+    try {
+        // 1. Auth
+        showStatus("Authenticating with iLovePDF...", "info");
+        const authResponse = await fetch('https://api.ilovepdf.com/v1/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public_key: ILOVEPDF_PUBLIC_KEY })
+        });
+        
+        if (!authResponse.ok) throw new Error("Auth failed: " + authResponse.statusText);
+        const { token } = await authResponse.json();
+
+        // 2. Start Task
+        showStatus("Starting compression task...", "info");
+        const startResponse = await fetch('https://api.ilovepdf.com/v1/start/compress', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!startResponse.ok) throw new Error("Start task failed");
+        const { server, task } = await startResponse.json();
+
+        // 3. Upload File
+        showStatus("Uploading PDF to iLovePDF...", "info");
+        const formData = new FormData();
+        formData.append('task', task);
+        formData.append('file', pdfBlob, filename);
+
+        const uploadResponse = await fetch(`https://${server}/v1/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+
+        if (!uploadResponse.ok) throw new Error("Upload failed");
+        const uploadData = await uploadResponse.json();
+
+        // 4. Process Task
+        showStatus("Compressing PDF in cloud...", "info");
+        const processResponse = await fetch(`https://${server}/v1/process`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                task: task,
+                tool: 'compress',
+                files: [{ server_filename: uploadData.server_filename, filename: filename }]
+            })
+        });
+
+        if (!processResponse.ok) throw new Error("Processing failed");
+
+        // 5. Download
+        showStatus("Downloading compressed PDF...", "info");
+        const downloadResponse = await fetch(`https://${server}/v1/download/${task}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!downloadResponse.ok) throw new Error("Download failed");
+        
+        return await downloadResponse.blob();
+
+    } catch (error) {
+        console.error("iLovePDF Error:", error);
+        throw new Error("Online compression failed. " + error.message);
+    }
+}
+// === END iLovePDF Logic ===
+
+function formatVesselName(raw) {
+  if (!raw) return "";
+  let clean = raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  let firstThree = clean.slice(0,3).toUpperCase();
+  let rest = clean.slice(3).trim();
+  if (!rest) return firstThree;
+  let words = rest.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  let formattedRest = words.join("");
+  return firstThree + "_" + formattedRest;
+}
+
+function formatAntennaModel(model, sn) {
+  if (!model || !sn) return "";
+  let m = model.trim().replace(/\s+/g, "-");
+  return (m.charAt(0).toUpperCase() + m.slice(1)) + "_SN" + sn.trim().toUpperCase();
+}
+
+function formatAntennaLocation(loc) {
+  if (!loc) return "";
+  return loc.trim().toUpperCase();
+}
+
+function formatSubmittedby(name) {
+  if (!name) return "";
+  return name.trim().split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+
+let jobFileHandle = null;
+
+loadJobInfoBtn.addEventListener("click", async () => {
+  const openWithInput = () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt';
+    fileInput.onchange = async () => {
+      if (!fileInput.files || fileInput.files.length === 0) return;
+      const file = fileInput.files[0];
+      try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          populateJobInfo(data);
+          saveFormToLocalStorage();
+      } catch (err) {
+          console.error(err);
+          showStatus("Failed to process job info file.", "error");
+      }
+    };
+    fileInput.click();
+  };
+
+  try {
+    if (!window.showOpenFilePicker) throw new Error("showOpenFilePicker not supported");
+    if (!jobFileHandle) {
+      [jobFileHandle] = await window.showOpenFilePicker({
+        types: [{ description: 'Job Info File', accept: { 'text/plain': ['.txt'] } }],
+        multiple: false
+      });
+    }
+    const file = await jobFileHandle.getFile();
+    const text = await file.text();
+    const data = JSON.parse(text);
+    populateJobInfo(data);
+    saveFormToLocalStorage();
+  } catch (err) {
+    openWithInput();
+  }
+});
+
+function populateJobInfo(data) {
+  if (data.VESSEL) document.getElementById("vesselName").value = formatVesselName(data.VESSEL);
+  if (data.INCIDENT) document.getElementById("caseNumber").value = data.INCIDENT;
+  if (data["ANTENNA"] && data["ANTENNA SN"]) {
+    document.getElementById("antennaModel").value = formatAntennaModel(data["ANTENNA"], data["ANTENNA SN"]);
+  }
+  if (data["LOCATION"]) document.getElementById("antennaLocation").value = formatAntennaLocation(data["LOCATION"]);
+  if (data["TECH"]) document.getElementById("submittedBy").value = formatSubmittedby(data["TECH"]);
+  showStatus("Job Info loaded!", "success");
+}
+
+saveJobInfoBtn.addEventListener('click', () => {
+  const data = {};
+  jobInfoInputIds.forEach(id => {
+    data[id] = document.getElementById(id).value;
+  });
+  const cleanData = {
+    "VESSEL": data.vesselName,
+    "ANTENNA": (data.antennaModel.split('_SN')[0] || data.antennaModel).split('_')[0],
+    "ANTENNA SN": data.antennaModel.split('_SN')[1] || '',
+    "LOCATION": data.antennaLocation,
+    "INCIDENT": data.caseNumber,
+    "TECH": data.submittedBy
+  };
+  const jsonString = JSON.stringify(cleanData, null, 2);
+  const blob = new Blob([jsonString], { type: 'text/plain;charset=utf-8' });
+  saveAs(blob, 'currentrip.txt');
+  showStatus('Job info saved!', 'success');
+});
+
+function saveFormToLocalStorage() {
+  const data = {};
+  jobInfoInputIds.forEach(id => {
+    data[id] = document.getElementById(id).value;
+  });
+  localStorage.setItem('jobInfoForm', JSON.stringify(data));
+}
+
+function loadFormFromLocalStorage() {
+  const savedData = localStorage.getItem('jobInfoForm');
+  if (savedData) {
+    try {
+      const data = JSON.parse(savedData);
+      jobInfoInputIds.forEach(id => {
+        if (data[id]) document.getElementById(id).value = data[id];
+      });
+    } catch (e) {
+      localStorage.removeItem('jobInfoForm');
+    }
+  }
+}
+
+dropZone.addEventListener('click', () => {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.multiple = true;
+  fileInput.accept = 'image/jpeg,image/png,image/heif,image/heic';
+  fileInput.onchange = () => addImages(fileInput.files);
+  fileInput.click();
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove("dragover"); addImages(e.dataTransfer.files); });
+
+async function addImages(fileList) {
+  if (fileList.length > 0) imageListContainer.style.display = 'flex';
+  const filesToProcess = Array.from(fileList).filter(file => file.type.startsWith('image/'));
+  showStatus(`Processing ${filesToProcess.length} images...`, 'info');
+  generateBtn.disabled = true;
+
+  for (let i = 0; i < filesToProcess.length; i++) {
+    const file = filesToProcess[i];
+    statusMessage.textContent = `Processing image ${i + 1} of ${filesToProcess.length}...`;
+    try {
+      const previewDataUrl = await convertImageToJpgDataUrl(file);
+      const wrapper = document.createElement('div');
+      wrapper.classList.add('image-wrapper');
+      wrapper.draggable = true;
+      
+      const previewImg = document.createElement('img');
+      previewImg.src = previewDataUrl; 
+      previewImg.classList.add('image-item');
+      previewImg.onclick = () => {
+        const index = Array.from(imageListContainer.children).indexOf(wrapper);
+        openImageModal(index);
+      };
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.innerHTML = "&times;";
+      removeBtn.classList.add('remove-image-btn');
+      removeBtn.ariaLabel = "Remove image"; 
+      removeBtn.onclick = () => {
+        const index = Array.from(imageListContainer.children).indexOf(wrapper);
+        if (index > -1) {
+            images.splice(index, 1);
+            wrapper.remove();
+            if (images.length === 0) imageListContainer.style.display = 'none';
+        }
+      };
+
+      const commentIcon = document.createElement('span');
+      commentIcon.classList.add('comment-icon');
+      commentIcon.textContent = '町';
+      
+      wrapper.appendChild(previewImg);
+      wrapper.appendChild(removeBtn);
+      wrapper.appendChild(commentIcon);
+      imageListContainer.appendChild(wrapper);
+
+      const newImageData = {
+          file: file,
+          comment: '',
+          id: 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+      };
+      images.push(newImageData);
+      wrapper.dataset.id = newImageData.id;
+
+      wrapper.addEventListener('dragstart', handleDragStart, false);
+      wrapper.addEventListener('dragenter', handleDragEnter, false);
+      wrapper.addEventListener('dragover', handleDragOver, false);
+      wrapper.addEventListener('dragleave', handleDragLeave, false);
+      wrapper.addEventListener('drop', handleDrop, false);
+      wrapper.addEventListener('dragend', handleDragEnd, false);
+      wrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
+
+      await new Promise(res => setTimeout(res, 0)); 
+    } catch (err) {
+        console.error("Failed to process image:", file.name, err);
+        showStatus(`Failed to load image: ${file.name}.`, "error");
+    }
+  }
+  showStatus(`Added ${filesToProcess.length} images. Hint: Long-press to re-order.`, 'success');
+  generateBtn.disabled = false;
+}
+
+document.getElementById('removeAllBtn').addEventListener('click', () => {
+  images = [];
+  imageListContainer.innerHTML = '';
+  imageListContainer.style.display = 'none';
+  showStatus('All images removed.', 'info');
+});
+
+function openImageModal(index) {
+  if (index < 0 || index >= images.length) return;
+  activeImageIndex = index;
+  imageCommentTextarea.value = images[index].comment;
+  imageModal.style.display = 'flex';
+  imageCommentTextarea.focus();
+}
+
+function closeImageModal() {
+  imageModal.style.display = 'none';
+  activeImageIndex = -1;
+  imageCommentTextarea.value = '';
+}
+
+modalSaveBtn.addEventListener('click', () => {
+  if (activeImageIndex > -1) {
+    images[activeImageIndex].comment = imageCommentTextarea.value.trim();
+    const wrapper = imageListContainer.children[activeImageIndex];
+    if (wrapper) {
+        const commentIcon = wrapper.querySelector('.comment-icon');
+        if (images[activeImageIndex].comment) commentIcon.classList.add('visible');
+        else commentIcon.classList.remove('visible');
+    }
+  }
+  closeImageModal();
+});
+
+modalDeleteBtn.addEventListener('click', () => {
+    if (activeImageIndex > -1) {
+        const wrapper = imageListContainer.children[activeImageIndex];
+        if (wrapper) {
+            images.splice(activeImageIndex, 1);
+            wrapper.remove();
+            if (images.length === 0) imageListContainer.style.display = 'none';
+        }
+    }
+    closeImageModal();
+});
+
+modalCancelBtn.addEventListener('click', closeImageModal);
+imageModal.addEventListener('click', (e) => { if (e.target === imageModal) closeImageModal(); });
+
+attachmentsDropZone.addEventListener('click', () => {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.multiple = true;
+  fileInput.onchange = () => addAttachments(fileInput.files);
+  fileInput.click();
+});
+attachmentsDropZone.addEventListener('dragover', e => { e.preventDefault(); attachmentsDropZone.classList.add("dragover"); });
+attachmentsDropZone.addEventListener('dragleave', e => { e.preventDefault(); attachmentsDropZone.classList.remove("dragover"); });
+attachmentsDropZone.addEventListener('drop', e => { e.preventDefault(); attachmentsDropZone.classList.remove("dragover"); addAttachments(e.dataTransfer.files); });
+
+function addAttachments(fileList){
+  if(fileList.length > 0) attachmentListContainer.style.display = 'block';
+  Array.from(fileList).forEach(file => {
+    attachments.push(file);
+    const item = document.createElement('div');
+    item.textContent = file.name;
+    item.classList.add('attachment-item');
+    attachmentListContainer.appendChild(item);
+  });
+}
+document.getElementById('removeAllAttachmentsBtn').addEventListener('click', () => {
+  attachments = [];
+  attachmentListContainer.innerHTML = '';
+  attachmentListContainer.style.display = 'none';
+  showStatus('All attachments removed.', 'info');
+});
+
+generateBtn.addEventListener('click', async () => {
+  statusMessage.className = 'status-message';
+  generateBtn.disabled = true;
+  generateBtn.classList.add('loading');
+
+  try {
+    const requiredIds = ["vesselName", "antennaModel", "antennaLocation", "caseNumber", "submittedBy", "dateField"];
+    let valid = true;
+    requiredIds.forEach(id => {
+      const f = document.getElementById(id);
+      if (!f.value.trim()) { f.classList.add("invalid"); valid = false; }
+      else { f.classList.remove("invalid"); }
+    });
+    if (!valid) throw new Error("Please fill all required fields!");
+    if (images.length === 0 && attachments.length === 0) throw new Error("Add at least one image or attachment.");
+
+    showStatus("Generating PDF...", "info");
+
+    const vessel = document.getElementById('vesselName').value.trim();
+    const antenna = document.getElementById('antennaModel').value.trim();
+    const location = document.getElementById('antennaLocation').value.trim().toUpperCase();
+    const caseNum = document.getElementById('caseNumber').value.trim();
+    const submitted = formatSubmittedby(document.getElementById('submittedBy').value.trim());
+    const dateStr = document.getElementById('dateField').value;
+    const perPage = parseInt(document.getElementById('imagesPerPage').value);
+    const compressionQuality = parseFloat(document.getElementById('compressionLevel').value);
+
+    // IMPORTANT: Enable 'compress' for the PDF stream itself
+    const pdf = new jsPDF({ 
+        orientation: 'landscape', 
+        unit: 'pt', 
+        format: 'a4',
+        compress: true 
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    // Load central logo for PDF
+    const logoUrl = 'https://pgarciafer.github.io/shared-design-system/icons/logo.png';
+    const logo = await loadImage(logoUrl);
+    if (logo) {
+      const logoWidth = 350;
+      const logoHeight = (logo.height * logoWidth) / logo.width;
+      pdf.addImage(logo, 'PNG', (pageWidth - logoWidth) / 2, 50, logoWidth, logoHeight);
+    }
+
+    pdf.setFontSize(26).setFont('helvetica', 'bold');
+    pdf.text(vessel, pageWidth / 2, 250, { align: 'center' });
+    pdf.setFontSize(18);
+    pdf.text(`${antenna} (${location})`, pageWidth / 2, 290, { align: 'center' });
+    pdf.setFontSize(14);
+    pdf.text(`Case Number: ${caseNum}`, pageWidth / 2, 330, { align: 'center' });
+    pdf.text(`Submitted By: ${submitted}`, pageWidth / 2, 360, { align: 'center' });
+    pdf.text(`Date: ${dateStr}`, pageWidth / 2, 385, { align: 'center' });
+
+    if (images.length > 0) {
+      pdf.addPage();
+      let pageNum = 2;
+      for (let i = 0; i < images.length; i += perPage) {
+        showStatus(`Processing PDF page ${Math.ceil((i + 1)/perPage)}...`, 'info');
+        await new Promise(res => setTimeout(res, 0)); 
+
+        const chunk = images.slice(i, i + perPage);
+        const spacingX = 10, spacingY = 10;
+        const cellWidth = (pageWidth - (perPage + 1) * spacingX) / perPage;
+        const cellHeight = pageHeight - 2 * spacingY;
+        
+        const processedChunk = [];
+        let maxImageBottom = 0;
+        
+        const anyCommentInChunk = chunk.some(d => d.comment && d.comment.trim() !== '');
+        const reservedCommentSpace = anyCommentInChunk ? 50 : 0;
+        const imgContainerHeight = cellHeight - reservedCommentSpace;
+
+        // 1. Process all images for this page first (Resize & Compress)
+        for (let idx = 0; idx < chunk.length; idx++) {
+            const imgData = chunk[idx];
+            
+            // This function forces re-encoding to JPEG at the specified quality
+            const dataUrl = await processImageForPdf(imgData.file, 2000, compressionQuality);
+            if (!dataUrl) continue;
+
+            const img = new Image();
+            img.src = dataUrl;
+            await new Promise(res => { img.onload = res; });
+            
+            const cellAspect = cellWidth / imgContainerHeight;
+            const imgAspect = img.width / img.height;
+            let finalW, finalH;
+
+            if (imgAspect > cellAspect) {
+                finalW = cellWidth * 0.95;
+                finalH = finalW / imgAspect;
+            } else {
+                finalH = imgContainerHeight * 0.95;
+                finalW = finalH * imgAspect;
+            }
+
+            const cellX = spacingX + idx * (cellWidth + spacingX);
+            const cellY = spacingY;
+
+            const imgX = cellX + (cellWidth - finalW) / 2;
+            const imgY = cellY + (imgContainerHeight - finalH) / 2;
+            
+            const imageBottom = imgY + finalH;
+            if (imageBottom > maxImageBottom) {
+                maxImageBottom = imageBottom;
+            }
+
+            processedChunk.push({
+                dataUrl,
+                comment: imgData.comment,
+                imgX, imgY, finalW, finalH,
+                cellX, cellWidth
+            });
+        }
+
+        // 2. Add processed images to PDF
+        const textY = maxImageBottom > 0 ? maxImageBottom + 15 : imgContainerHeight + 15;
+
+        for (const pImg of processedChunk) {
+            // Explicitly specify "JPEG" format to use the compressed data
+            pdf.addImage(pImg.dataUrl, "JPEG", pImg.imgX, pImg.imgY, pImg.finalW, pImg.finalH);
+
+            if (pImg.comment && pImg.comment.trim() !== '') {
+                pdf.setFontSize(10).setFont('helvetica', 'normal');
+                const textLines = pdf.splitTextToSize(pImg.comment, pImg.cellWidth * 0.9);
+                pdf.text(textLines, pImg.cellX + pImg.cellWidth / 2, textY, { align: 'center' });
+            }
+        }
+
+        pdf.setFontSize(12).text(`Page ${pageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        if (i + perPage < images.length) pdf.addPage();
+        pageNum++;
+      }
+    }
+
+    if (attachments.length > 0) {
+      pdf.addPage();
+      pdf.setFontSize(16).setFont('helvetica', 'bold');
+      pdf.text("Attached Files", pageWidth / 2, 30, { align: 'center' });
+      pdf.setFontSize(12).setFont('helvetica', 'normal');
+      let startY = 60;
+      for (const att of attachments) {
+        pdf.text(`梼 ${att.name}`, 20, startY);
+        startY += 25;
+      }
+    }
+
+    const pdfFilename = `${vessel}_PicArray_${antenna}_${location.replace(/ /g, '')}_Case${caseNum}_${dateStr.replace(/-/g,'')}.pdf`;
+    
+    // === NEW: ZIP or Direct PDF Logic ===
+    if (attachments.length > 0) {
+      showStatus('Compressing ZIP...', 'info');
+      const zip = new JSZip();
+      
+      let pdfBlob = pdf.output('blob');
+      
+      // === iLovePDF Integration for ZIP ===
+      const useILovePdf = document.getElementById('compressPdf').checked;
+      if (useILovePdf) {
+         try {
+             pdfBlob = await compressPDFWithILovePDF(pdfBlob, pdfFilename);
+         } catch (e) {
+             console.error("Online compression failed, using standard.", e);
+             showStatus("Online compression failed. Using standard.", "error");
+             await new Promise(r => setTimeout(r, 2000));
+         }
+      }
+
+      zip.file(pdfFilename, pdfBlob);
+      const folder = zip.folder("attachments");
+      attachments.forEach(f => folder.file(f.name, f));
+      
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, pdfFilename.replace('.pdf', '.zip'));
+      showStatus('Success!', 'success');
+
+    } else {
+      // === Standard PDF Download / Share Logic ===
+      let pdfBlob = pdf.output('blob');
+      
+      // === iLovePDF Integration for Single PDF ===
+      const useILovePdf = document.getElementById('compressPdf').checked;
+      if (useILovePdf) {
+         try {
+             pdfBlob = await compressPDFWithILovePDF(pdfBlob, pdfFilename);
+         } catch (e) {
+             console.error("Online compression failed, using standard.", e);
+             showStatus("Online compression failed. Using standard.", "error");
+             await new Promise(r => setTimeout(r, 2000));
+         }
+      }
+
+      const pdfFile = new File([pdfBlob], pdfFilename, { type: 'application/pdf' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+            await navigator.share({
+            files: [pdfFile],
+            title: pdfFilename,
+            text: `PDF document for ${vessel}`
+            });
+            showStatus('PDF shared successfully!', 'success');
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                saveAs(pdfBlob, pdfFilename);
+                showStatus('PDF generated successfully!', 'success');
+            } else {
+                showStatus('Share cancelled.', 'info');
+            }
+        }
+      } else {
+          saveAs(pdfBlob, pdfFilename);
+          showStatus('PDF generated successfully!', 'success');
+      }
+    }
+
+  } catch (err) {
+    showStatus(err.message || "Error generating PDF.", "error");
+    console.error(err);
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.classList.remove('loading');
+  }
+});
+
+function loadImage(src){
+  return new Promise(res=>{
+    const img=new Image(); img.crossOrigin='Anonymous'; img.src=src;
+    img.onload=()=>res(img); img.onerror=()=>res(null);
+  });
+}
+
+// Drag & Drop
+function handleDragStart(e) {
+  this.classList.add('dragging');
+  dragSrcEl = this;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', this.dataset.id);
+}
+function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
+function handleDragEnter(e) { if (this !== dragSrcEl) this.classList.add('over'); }
+function handleDragLeave(e) { this.classList.remove('over'); }
+function handleDrop(e) {
+  e.stopPropagation();
+  if (dragSrcEl !== this) {
+    const allItems = Array.from(imageListContainer.children);
+    const srcIndex = allItems.indexOf(dragSrcEl);
+    const targetIndex = allItems.indexOf(this);
+    if (srcIndex < targetIndex) imageListContainer.insertBefore(dragSrcEl, this.nextSibling);
+    else imageListContainer.insertBefore(dragSrcEl, this);
+  }
+  return false;
+}
+function handleDragEnd(e) {
+  document.querySelectorAll('.image-wrapper').forEach(item => {
+    item.classList.remove('over');
+    item.classList.remove('dragging');
+  });
+  const newOrder = [...imageListContainer.children];
+  images = newOrder.map(w => images.find(i => i.id === w.dataset.id)).filter(Boolean);
+  dragSrcEl = null;
+}
+
+// Touch Drag
+let touchDragEl = null, isDraggingTouch = false, placeholder = null, longPressTimer = null;
+let initialTouchX = 0, initialTouchY = 0, startRect = null;
+
+function handleTouchStart(e) {
+  if (e.target.classList.contains('remove-image-btn')) return;
+  touchDragEl = this;
+  const touch = e.touches[0];
+  const startX = touch.clientX, startY = touch.clientY;
+
+  const cancelDrag = () => {
+    clearTimeout(longPressTimer);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', cancelDrag);
+  };
+  const onMove = (moveEvent) => {
+    if (Math.abs(moveEvent.touches[0].clientX - startX) > 10 || Math.abs(moveEvent.touches[0].clientY - startY) > 10) cancelDrag();
+  };
+  document.addEventListener('touchmove', onMove);
+  document.addEventListener('touchend', cancelDrag);
+
+  longPressTimer = setTimeout(() => {
+    cancelDrag();
+    isDraggingTouch = true;
+    startRect = touchDragEl.getBoundingClientRect();
+    initialTouchX = touch.clientX; initialTouchY = touch.clientY;
+    
+    placeholder = document.createElement('div');
+    placeholder.classList.add('placeholder');
+    placeholder.style.width = `${startRect.width}px`;
+    placeholder.style.height = `${startRect.height}px`;
+    touchDragEl.parentNode.insertBefore(placeholder, touchDragEl);
+
+    Object.assign(touchDragEl.style, {
+        position: 'fixed', zIndex: '1000',
+        width: `${startRect.width}px`, height: `${startRect.height}px`,
+        left: `${startRect.left}px`, top: `${startRect.top}px`, margin: '0'
+    });
+    touchDragEl.classList.add('touch-dragging');
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  }, 300);
+}
+
+function handleTouchMove(e) {
+  if (!isDraggingTouch) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  touchDragEl.style.transform = `translate(${touch.clientX - initialTouchX}px, ${touch.clientY - initialTouchY}px)`;
+  
+  touchDragEl.style.visibility = 'hidden';
+  const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  touchDragEl.style.visibility = 'visible';
+  if (!elementBelow) return;
+
+  const dropTarget = elementBelow.closest('.image-wrapper');
+  if (dropTarget && dropTarget !== touchDragEl && dropTarget !== placeholder) {
+      const rect = dropTarget.getBoundingClientRect();
+      if (touch.clientX > rect.left + rect.width / 2) dropTarget.parentNode.insertBefore(placeholder, dropTarget.nextSibling);
+      else dropTarget.parentNode.insertBefore(placeholder, dropTarget);
+  }
+}
+
+function handleTouchEnd(e) {
+  if (!isDraggingTouch) return;
+  document.removeEventListener('touchmove', handleTouchMove);
+  document.removeEventListener('touchend', handleTouchEnd);
+
+  if (touchDragEl && placeholder) {
+    placeholder.parentNode.insertBefore(touchDragEl, placeholder);
+    placeholder.remove();
+    touchDragEl.classList.remove('touch-dragging');
+    touchDragEl.style.cssText = '';
+  }
+  
+  const newOrder = [...imageListContainer.children];
+  images = newOrder.map(w => images.find(i => i.id === w.dataset.id)).filter(Boolean);
+  isDraggingTouch = false; touchDragEl = null; placeholder = null;
+}
+
+jobInfoInputIds.forEach(id => document.getElementById(id).addEventListener('input', saveFormToLocalStorage));
+document.addEventListener('DOMContentLoaded', loadFormFromLocalStorage);
+</script>
+</body>
+</html>
