@@ -15,8 +15,9 @@
 <style>
 /* --- APP-SPECIFIC STYLES --- */
 
-/* Force Centering Override */
+/* Force Centering Override & Font Inheritance */
 body {
+  /* MODIFIED: Removed local font-family so it inherits from style.css */
   background-color: var(--bg-color);
   color: var(--text-color);
   margin: 0;
@@ -26,6 +27,7 @@ body {
   align-items: flex-start;
   min-height: 100vh;
   width: 100%;
+  -webkit-font-smoothing: antialiased;
 }
 
 .container {
@@ -1278,5 +1280,40 @@ function handleTouchEnd(e) {
 jobInfoInputIds.forEach(id => document.getElementById(id).addEventListener('input', saveFormToLocalStorage));
 document.addEventListener('DOMContentLoaded', loadFormFromLocalStorage);
 </script>
+
+<script>
+  // Wait for the browser to finish loading fonts
+  document.fonts.ready.then(function () {
+    // Check if "CorporateFont" is properly loaded
+    // IMPORTANT: This name must match exactly what is in your shared style.css
+    const fontName = 'CorporateFont'; 
+    
+    // Check if the font is active.
+    if (!document.fonts.check(`12px "${fontName}"`)) {
+        
+        const warning = document.createElement('div');
+        warning.style.cssText = `
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            background-color: #ff4444; 
+            color: white; 
+            text-align: center; 
+            padding: 15px; 
+            font-weight: bold; 
+            z-index: 10000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        `;
+        warning.innerHTML = `⚠️ FONT ERROR: "${fontName}" could not be loaded. <br> <span style="font-weight:normal; font-size: 0.9em;">Check that the TTF file is in the "fonts" folder and the name in style.css is correct.</span>`;
+        
+        document.body.prepend(warning);
+        console.error(`Font check failed: ${fontName} is not active.`);
+    } else {
+        console.log(`Success: ${fontName} is loaded and active.`);
+    }
+  });
+</script>
+
 </body>
 </html>
